@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StreamLink — Live Camera + Chat</title>
+<title>StreamLink — Live Board, Radio & Chat</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root{
     --bg:#0a0d13; --panel:#111621; --panel-2:#171e2c; --border:#222c3f;
     --text:#e9eefb; --muted:#8d9ab3; --accent:#4f8cff; --accent-2:#8b5cff;
-    --green:#2ee6a8; --danger:#ff4d6a; --radius:16px;
+    --green:#2ee6a8; --danger:#ff4d6a;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
@@ -18,7 +18,7 @@
     background:var(--bg);color:var(--text);overflow:hidden;-webkit-font-smoothing:antialiased;
   }
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
-  input{font-family:inherit}
+  input,textarea{font-family:inherit}
   .screen{display:none;height:100dvh;width:100%}
   .screen.active{display:flex}
 
@@ -43,56 +43,94 @@
   h1{font-size:25px;line-height:1.3;font-weight:700;letter-spacing:-.4px;margin-bottom:10px}
   h1 span{background:linear-gradient(100deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
   .sub{font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:26px}
-
-  .btn{
-    display:flex;align-items:center;justify-content:center;gap:8px;
-    padding:14px 20px;border-radius:13px;font-size:15px;font-weight:600;
-    transition:transform .12s ease, filter .2s ease, background .2s;
-  }
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:13px;
+    font-size:15px;font-weight:600;transition:transform .12s ease, filter .2s ease, background .2s}
   .btn:active{transform:scale(.98)}
-  .btn.primary{
-    width:100%;color:#fff;
-    background:linear-gradient(120deg,var(--accent),var(--accent-2));
-    box-shadow:0 10px 30px rgba(79,140,255,.34);
-  }
+  .btn.primary{width:100%;color:#fff;background:linear-gradient(120deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 30px rgba(79,140,255,.34)}
   .btn.primary:hover{filter:brightness(1.08)}
-  .divider{
-    display:flex;align-items:center;gap:12px;color:var(--muted);
-    font-size:12px;text-transform:uppercase;letter-spacing:1.2px;margin:22px 0 16px;
-  }
+  .btn.ghost{background:var(--panel-2);border:1px solid var(--border);padding:11px 18px;font-size:14px}
+  .btn.primary.small{width:auto;padding:11px 20px;font-size:14px;box-shadow:none}
+  .divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;
+    text-transform:uppercase;letter-spacing:1.2px;margin:22px 0 16px}
   .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
   .join-row{display:flex;gap:9px}
-  .join-row input{
-    flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border);
-    border-radius:13px;padding:14px 16px;color:var(--text);font-size:15px;
-    letter-spacing:4px;text-align:center;font-weight:600;outline:none;transition:border-color .2s;
-  }
-  .join-row input::placeholder{letter-spacing:normal;font-weight:400;color:#5b6780}
+  .join-row input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:13px;padding:14px 16px;color:var(--text);font-size:15px;letter-spacing:4px;
+    text-align:center;font-weight:600;text-transform:uppercase;outline:none;transition:border-color .2s}
+  .join-row input::placeholder{letter-spacing:normal;font-weight:400;color:#5b6780;text-transform:none}
   .join-row input:focus{border-color:var(--accent)}
   .join-row .btn{background:var(--panel-2);border:1px solid var(--border);padding:14px 22px}
   .join-row .btn:hover{background:#1e2637}
   .error{color:var(--danger);font-size:13px;margin-top:14px;text-align:center;min-height:18px}
-  .hint{font-size:12px;color:#5b6780;text-align:center;margin-top:10px}
+
+  /* ---------- MODAL ---------- */
+  .modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+    padding:24px;background:rgba(5,7,11,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .modal.open{display:flex}
+  .modal-card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--border);
+    border-radius:20px;padding:26px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+    animation:rise .28s cubic-bezier(.2,.8,.2,1)}
+  .modal-card h2{font-size:18px;margin-bottom:6px}
+  .modal-card p{font-size:13.5px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+  .modal-card input{width:100%;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:12px;padding:13px 15px;color:var(--text);font-size:15px;outline:none;transition:border-color .2s}
+  .modal-card input:focus{border-color:var(--accent)}
+  .modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
 
   /* ---------- ROOM ---------- */
   #room{flex-direction:row;position:relative;background:#05070b}
   .stage{position:relative;flex:1;min-width:0;background:#05070b;overflow:hidden}
-  #mainVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#05070b}
-  #mainVideo.mirrored{transform:scaleX(-1)}
 
-  .overlay-top{
-    position:absolute;top:0;left:0;right:0;z-index:12;
-    display:flex;align-items:center;gap:9px;padding:14px;
-    background:linear-gradient(180deg,rgba(5,7,11,.82),transparent);
-  }
+  /* ---------- BOARD ---------- */
+  .board{position:absolute;inset:0;display:flex;flex-direction:column;
+    padding:84px 240px 122px 34px;z-index:5}
+  .board-label{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.6px;
+    text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;flex-shrink:0}
+  .board-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+  .board-body{flex:1;min-height:0;display:flex}
+  #boardInput,#boardView{flex:1;min-width:0;width:100%;background:transparent;border:none;outline:none;
+    resize:none;color:var(--text);font-size:26px;line-height:1.5;font-weight:600;letter-spacing:-.2px}
+  #boardInput::placeholder{color:#3d4a63;font-weight:500}
+  #boardInput{overflow-y:auto}
+  #boardView{white-space:pre-wrap;word-break:break-word;overflow-y:auto}
+  #boardView.empty{color:#4a5670;font-weight:500}
+  #boardInput::-webkit-scrollbar,#boardView::-webkit-scrollbar{width:6px}
+  #boardInput::-webkit-scrollbar-thumb,#boardView::-webkit-scrollbar-thumb{background:#2a3448;border-radius:99px}
+
+  /* ---------- VIDEO TILE ---------- */
+  .video-tile{position:absolute;right:20px;bottom:98px;width:190px;aspect-ratio:1/1;z-index:13;
+    border-radius:18px;overflow:hidden;background:#0b0f16;border:1px solid var(--border);
+    box-shadow:0 18px 50px rgba(0,0,0,.6);cursor:pointer}
+  #hostVideo{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .25s}
+  .stage.radio #hostVideo{opacity:0}
+  .tile-eq{position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;gap:5px;
+    padding:20px;background:linear-gradient(160deg,#14203a,#0a0e16)}
+  .stage.radio .tile-eq{display:flex}
+  .tile-eq span{width:6px;border-radius:3px;background:linear-gradient(180deg,var(--accent),var(--accent-2));
+    height:20%;animation:eq 1s ease-in-out infinite}
+  .tile-eq span:nth-child(1){animation-duration:.9s;animation-delay:0s}
+  .tile-eq span:nth-child(2){animation-duration:1.15s;animation-delay:.12s}
+  .tile-eq span:nth-child(3){animation-duration:.8s;animation-delay:.05s}
+  .tile-eq span:nth-child(4){animation-duration:1.05s;animation-delay:.2s}
+  .tile-eq span:nth-child(5){animation-duration:.95s;animation-delay:.08s}
+  @keyframes eq{0%,100%{height:18%}50%{height:92%}}
+  .tile-badge{position:absolute;left:8px;top:8px;display:inline-flex;align-items:center;gap:5px;
+    padding:4px 8px;border-radius:999px;background:rgba(5,7,11,.72);border:1px solid rgba(255,255,255,.1);
+    font-size:9.5px;font-weight:800;letter-spacing:.8px;color:#fff;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .tile-badge .live-dot{width:6px;height:6px;border-radius:50%;background:var(--danger);animation:pulse 1.8s infinite}
+
+  /* ---------- OVERLAYS ---------- */
+  .overlay-top{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;
+    gap:9px;padding:14px;background:linear-gradient(180deg,rgba(5,7,11,.85),transparent)}
   .spacer{flex:1}
-  .pill{
-    display:inline-flex;align-items:center;gap:7px;
-    padding:8px 13px;border-radius:999px;font-size:12.5px;font-weight:600;
-    background:rgba(17,22,33,.82);border:1px solid var(--border);
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);white-space:nowrap;
-  }
-  .pill .live-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
+    font-size:12.5px;font-weight:600;background:rgba(17,22,33,.85);border:1px solid var(--border);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);white-space:nowrap}
+  #statusPill{max-width:44vw}
+  #statusText{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill .live-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
   .pill.live .live-dot{background:var(--danger);box-shadow:0 0 0 0 rgba(255,77,106,.7);animation:pulse 1.8s infinite}
   @keyframes pulse{
     0%{box-shadow:0 0 0 0 rgba(255,77,106,.65)}
@@ -101,130 +139,107 @@
   }
   .code-pill{cursor:pointer;letter-spacing:1.6px;color:var(--accent);transition:background .18s}
   .code-pill:hover{background:rgba(79,140,255,.16)}
+  .share-wrap{position:relative}
+  #shareBtn{transition:background .18s}
+  #shareBtn:hover{background:rgba(79,140,255,.16)}
+  .share-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:60;display:none;flex-direction:column;
+    min-width:238px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:6px;
+    box-shadow:0 20px 50px rgba(0,0,0,.65)}
+  .share-menu.open{display:flex}
+  .share-menu a{display:block;padding:11px 13px;border-radius:10px;font-size:13.5px;font-weight:600;
+    color:var(--text);text-decoration:none;white-space:nowrap;transition:background .15s}
+  .share-menu a:hover{background:var(--panel-2)}
 
-  .waiting{
-    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    z-index:11;padding:12px 20px;border-radius:999px;font-size:13.5px;color:var(--muted);
-    background:rgba(17,22,33,.8);border:1px solid var(--border);
+  .waiting{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;
+    padding:12px 20px;border-radius:999px;font-size:13.5px;color:var(--muted);text-align:center;
+    background:rgba(17,22,33,.85);border:1px solid var(--border);
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-    display:flex;align-items:center;gap:9px;transition:opacity .3s;text-align:center;
-  }
+    display:flex;align-items:center;gap:9px;transition:opacity .3s}
   .waiting.hidden{opacity:0;pointer-events:none}
-  .spinner{
-    width:13px;height:13px;border-radius:50%;flex-shrink:0;
-    border:2px solid rgba(141,154,179,.28);border-top-color:var(--accent);
-    animation:spin .8s linear infinite;
-  }
+  .spinner{width:13px;height:13px;border-radius:50%;flex-shrink:0;
+    border:2px solid rgba(141,154,179,.28);border-top-color:var(--accent);animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  .overlay-bottom{
-    position:absolute;left:0;right:0;bottom:0;z-index:12;
-    display:flex;align-items:center;justify-content:center;gap:11px;
-    padding:18px 14px calc(18px + env(safe-area-inset-bottom));
-    background:linear-gradient(0deg,rgba(5,7,11,.88),transparent);
-  }
-  .ctrl{
-    display:flex;align-items:center;justify-content:center;gap:7px;
-    min-width:52px;height:52px;padding:0 16px;border-radius:16px;
-    background:rgba(23,30,44,.9);border:1px solid var(--border);
+  .overlay-bottom{position:absolute;left:0;right:0;bottom:0;z-index:20;display:flex;align-items:center;
+    justify-content:center;gap:11px;padding:18px 14px calc(18px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,rgba(5,7,11,.9),transparent)}
+  .ctrl{display:flex;align-items:center;justify-content:center;gap:7px;min-width:52px;height:52px;
+    padding:0 16px;border-radius:16px;background:rgba(23,30,44,.92);border:1px solid var(--border);
     font-size:14px;font-weight:600;color:var(--text);
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-    transition:background .18s, transform .12s, opacity .2s;
-  }
+    transition:background .18s, transform .12s}
   .ctrl:hover{background:rgba(34,44,63,.95)}
   .ctrl:active{transform:scale(.95)}
   .ctrl.off{background:rgba(255,77,106,.16);border-color:rgba(255,77,106,.4);color:#ff8fa2}
+  .ctrl.on{background:rgba(79,140,255,.2);border-color:rgba(79,140,255,.55);color:#a6c4ff}
   .ctrl.danger{background:linear-gradient(120deg,#e8394f,#ff4d6a);border-color:transparent;color:#fff}
   .ctrl.danger:hover{filter:brightness(1.1)}
 
   /* ---------- CHAT ---------- */
-  .chat{
-    width:344px;flex-shrink:0;display:flex;flex-direction:column;height:100%;
-    background:var(--panel);border-left:1px solid var(--border);z-index:20;
-  }
-  .chat-head{
-    display:flex;align-items:center;gap:10px;
-    padding:16px;border-bottom:1px solid var(--border);flex-shrink:0;
-  }
+  .chat{width:344px;flex-shrink:0;display:flex;flex-direction:column;height:100%;
+    background:var(--panel);border-left:1px solid var(--border);z-index:25}
+  .chat-head{display:flex;align-items:center;gap:10px;padding:16px;
+    border-bottom:1px solid var(--border);flex-shrink:0}
   .chat-head h2{font-size:14.5px;font-weight:650;letter-spacing:-.1px}
-  .badge{
-    margin-left:auto;font-size:11.5px;font-weight:600;color:var(--muted);
-    background:var(--panel-2);border:1px solid var(--border);
-    padding:4px 10px;border-radius:999px;white-space:nowrap;
-  }
-  .messages{
-    flex:1;overflow-y:auto;overscroll-behavior:contain;
-    padding:16px;display:flex;flex-direction:column;gap:10px;
-  }
+  .badge{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--muted);background:var(--panel-2);
+    border:1px solid var(--border);padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .messages{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:16px;
+    display:flex;flex-direction:column;gap:10px}
   .messages::-webkit-scrollbar{width:6px}
   .messages::-webkit-scrollbar-thumb{background:#2a3448;border-radius:99px}
   .msg{max-width:86%;display:flex;flex-direction:column;gap:3px;animation:pop .22s ease}
   @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .msg.me{align-self:flex-end;align-items:flex-end}
   .msg.them{align-self:flex-start;align-items:flex-start}
-  .bubble{
-    padding:9px 13px;border-radius:15px;font-size:14px;line-height:1.45;
-    word-break:break-word;white-space:pre-wrap;
-  }
-  .msg.me .bubble{
-    background:linear-gradient(125deg,var(--accent),var(--accent-2));color:#fff;
-    border-bottom-right-radius:5px;box-shadow:0 6px 18px rgba(79,140,255,.24);
-  }
-  .msg.them .bubble{
-    background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:5px;
-  }
+  .bubble{padding:9px 13px;border-radius:15px;font-size:14px;line-height:1.45;
+    word-break:break-word;white-space:pre-wrap}
+  .msg.me .bubble{background:linear-gradient(125deg,var(--accent),var(--accent-2));color:#fff;
+    border-bottom-right-radius:5px;box-shadow:0 6px 18px rgba(79,140,255,.24)}
+  .msg.them .bubble{background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:5px}
   .time{font-size:10px;color:#5b6780;padding:0 4px}
   .msg.system{align-self:center;max-width:100%}
-  .msg.system .bubble{
-    background:transparent;border:none;color:var(--muted);
-    font-size:12px;text-align:center;padding:2px 8px;
-  }
-
-  .composer{
-    display:flex;gap:9px;padding:12px;flex-shrink:0;
-    border-top:1px solid var(--border);background:var(--panel);
-    padding-bottom:calc(12px + env(safe-area-inset-bottom));
-  }
-  .composer input{
-    flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border);
-    border-radius:13px;padding:12px 15px;color:var(--text);font-size:14px;
-    outline:none;transition:border-color .2s;
-  }
+  .msg.system .bubble{background:transparent;border:none;color:var(--muted);font-size:12px;
+    text-align:center;padding:2px 8px}
+  .composer{display:flex;gap:9px;padding:12px;flex-shrink:0;border-top:1px solid var(--border);
+    background:var(--panel);padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  .composer input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:13px;padding:12px 15px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s}
   .composer input::placeholder{color:#5b6780}
   .composer input:focus{border-color:var(--accent)}
-  .composer button{
-    padding:0 18px;border-radius:13px;font-size:14px;font-weight:650;color:#fff;
-    background:linear-gradient(120deg,var(--accent),var(--accent-2));
-    transition:filter .18s, transform .12s;
-  }
+  .composer button{padding:0 18px;border-radius:13px;font-size:14px;font-weight:650;color:#fff;
+    background:linear-gradient(120deg,var(--accent),var(--accent-2));transition:filter .18s, transform .12s}
   .composer button:hover{filter:brightness(1.1)}
   .composer button:active{transform:scale(.96)}
-
-  #chatToggle{
-    display:none;align-items:center;justify-content:center;
-    width:40px;height:40px;border-radius:12px;font-size:17px;
-    background:rgba(17,22,33,.82);border:1px solid var(--border);
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;
-  }
-  #chatToggle .unread{
-    position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;
-    background:var(--danger);border:2px solid var(--bg);display:none;
-  }
+  #chatToggle{display:none;align-items:center;justify-content:center;width:40px;height:40px;
+    border-radius:12px;font-size:17px;background:rgba(17,22,33,.85);border:1px solid var(--border);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;flex-shrink:0}
+  #chatToggle .unread{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;
+    background:var(--danger);border:2px solid var(--bg);display:none}
   #chatToggle.has-unread .unread{display:block}
 
-  /* ---------- MOBILE ---------- */
+  /* ---------- RESPONSIVE ---------- */
   @media (max-width:820px){
-    .chat{
-      position:absolute;left:0;right:0;bottom:0;width:100%;height:66%;
-      border-left:none;border-top:1px solid var(--border);
-      border-radius:20px 20px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.55);
-      transform:translateY(112%);
-      transition:transform .3s cubic-bezier(.2,.8,.2,1);
-    }
+    .chat{position:absolute;left:0;right:0;bottom:0;width:100%;height:66%;
+      border-left:none;border-top:1px solid var(--border);border-radius:20px 20px 0 0;
+      box-shadow:0 -20px 60px rgba(0,0,0,.55);transform:translateY(112%);
+      transition:transform .3s cubic-bezier(.2,.8,.2,1)}
     .chat.open{transform:translateY(0)}
     #chatToggle{display:flex}
     .ctrl{min-width:48px;height:48px;padding:0 13px;font-size:13px}
     h1{font-size:22px}
+
+    .board{padding:72px 124px 108px 18px}
+    #boardInput,#boardView{font-size:19px}
+    .video-tile{width:96px;right:12px;bottom:92px;border-radius:14px}
+    .tile-eq{gap:3px;padding:12px}
+    .tile-eq span{width:4px}
+    .tile-badge{font-size:8px;padding:3px 6px;left:6px;top:6px}
+    .share-menu{right:-4px}
+  }
+  @media (max-width:560px){
+    .copy-hint{display:none}
+    .share-label{display:none}
+    .pill{padding:7px 10px;font-size:12px}
   }
   @media (min-width:821px){ #chatToggle{display:none} }
 </style>
@@ -235,48 +250,76 @@
 <div id="landing" class="screen active">
   <div class="card">
     <div class="logo"><span class="dot"></span> StreamLink</div>
-    <h1>Go live from your camera.<br><span>Chat in real time.</span></h1>
-    <p class="sub">Start a stream and anyone with the room code can watch you live and message you instantly.</p>
+    <h1>Go live from your camera.<br><span>Board, radio & chat.</span></h1>
+    <p class="sub">Only the admin can start a live. Every broadcast gets a fresh room code — share it and viewers can watch, follow your live board, switch to radio mode and chat.</p>
 
-    <button id="btnGoLive" class="btn primary">
-      <span>●</span> Go Live
-    </button>
+    <button id="btnGoLive" class="btn primary"><span>●</span> Go Live (Admin)</button>
 
-    <div class="divider">or join a stream</div>
+    <div class="divider">or join a live</div>
 
     <div class="join-row">
-      <input id="codeInput" placeholder="Enter code" maxlength="4" value="1234"
-             inputmode="numeric" autocomplete="off" spellcheck="false">
+      <input id="codeInput" placeholder="Room code" maxlength="6" autocomplete="off" spellcheck="false">
       <button id="btnJoin" class="btn">Join</button>
     </div>
-    <p class="hint">Room code: <strong>1234</strong></p>
     <p id="landingError" class="error"></p>
+  </div>
+</div>
+
+<!-- ================= ADMIN MODAL ================= -->
+<div id="adminModal" class="modal">
+  <div class="modal-card">
+    <h2>Admin access</h2>
+    <p>Only the admin can start a live stream. Enter the admin password to continue.</p>
+    <input id="adminPass" type="password" placeholder="Admin password" autocomplete="off">
+    <p id="adminError" class="error"></p>
+    <div class="modal-actions">
+      <button id="adminCancel" class="btn ghost">Cancel</button>
+      <button id="adminConfirm" class="btn primary small">Go Live</button>
+    </div>
   </div>
 </div>
 
 <!-- ================= ROOM ================= -->
 <div id="room" class="screen">
-  <div class="stage">
-    <video id="mainVideo" playsinline autoplay></video>
+  <div class="stage" id="stage">
+
+    <div class="board">
+      <div class="board-label"><span class="board-dot"></span> On‑air board</div>
+      <div class="board-body">
+        <textarea id="boardInput" spellcheck="false"
+          placeholder="Start typing — everyone watching will see it live…"></textarea>
+        <div id="boardView"></div>
+      </div>
+    </div>
+
+    <div class="video-tile" id="videoTile">
+      <video id="hostVideo" playsinline autoplay muted></video>
+      <div class="tile-eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="tile-badge" id="tileBadge"><span class="live-dot"></span>LIVE</div>
+    </div>
 
     <div class="overlay-top">
-      <div class="pill" id="statusPill">
-        <span class="live-dot"></span><span id="statusText">Connecting…</span>
-      </div>
+      <div class="pill" id="statusPill"><span class="live-dot"></span><span id="statusText">Connecting…</span></div>
       <div class="spacer"></div>
       <button class="pill code-pill" id="codePill" title="Copy invite link">
-        <span id="codeText">1234</span> · copy
+        <span id="codeText">------</span><span class="copy-hint"> · copy</span>
       </button>
+      <div class="share-wrap">
+        <button class="pill" id="shareBtn">📤<span class="share-label"> Share</span></button>
+        <div class="share-menu" id="shareMenu">
+          <a id="shareLive" target="_blank" rel="noopener">🔴 Share live on WhatsApp</a>
+          <a id="shareCode" target="_blank" rel="noopener">🔑 Share code on WhatsApp</a>
+        </div>
+      </div>
       <button id="chatToggle" title="Toggle chat">💬<span class="unread"></span></button>
     </div>
 
-    <div class="waiting" id="waiting">
-      <span class="spinner"></span><span id="waitingText">Waiting for viewers…</span>
-    </div>
+    <div class="waiting hidden" id="waiting"><span class="spinner"></span><span id="waitingText">Connecting…</span></div>
 
     <div class="overlay-bottom">
       <button class="ctrl" id="micBtn" title="Toggle microphone">🎤</button>
       <button class="ctrl" id="camBtn" title="Toggle camera">📹</button>
+      <button class="ctrl" id="radioBtn" title="Radio mode" style="display:none">📻 Radio</button>
       <button class="ctrl danger" id="endBtn" title="End stream">End</button>
     </div>
   </div>
@@ -298,16 +341,20 @@
 (() => {
   'use strict';
 
-  /* ---------------- Config ---------------- */
-  const ID_PREFIX = 'streamlink-v1-';   // namespace on the public PeerJS broker
-  const ROOM_CODE = '1234';             // fixed room code
-  const CODE_LEN  = ROOM_CODE.length;
+  /* ================= CONFIG ================= */
+  const ADMIN_PASSWORD = 'admin123';                 // ← change this
+  const ID_PREFIX      = 'streamlink-v3-';           // PeerJS namespace
+  const CODE_ALPHABET  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const CODE_LEN       = 6;
 
-  /* ---------------- Elements ---------------- */
-  const $ = sel => document.querySelector(sel);
+  /* ================= ELEMENTS ================= */
+  const $ = s => document.querySelector(s);
   const landing      = $('#landing');
   const room         = $('#room');
-  const mainVideo    = $('#mainVideo');
+  const stage        = $('#stage');
+  const hostVideo    = $('#hostVideo');
+  const videoTile    = $('#videoTile');
+  const tileBadge    = $('#tileBadge');
   const codeInput    = $('#codeInput');
   const landingError = $('#landingError');
   const codeText     = $('#codeText');
@@ -318,28 +365,48 @@
   const waitingText  = $('#waitingText');
   const micBtn       = $('#micBtn');
   const camBtn       = $('#camBtn');
+  const radioBtn     = $('#radioBtn');
   const endBtn       = $('#endBtn');
+  const boardInput   = $('#boardInput');
+  const boardView    = $('#boardView');
   const messagesEl   = $('#messages');
   const composer     = $('#composer');
   const msgInput     = $('#msgInput');
   const viewerCount  = $('#viewerCount');
   const chatPanel    = $('#chatPanel');
   const chatToggle   = $('#chatToggle');
+  const shareBtn     = $('#shareBtn');
+  const shareMenu    = $('#shareMenu');
+  const shareLive    = $('#shareLive');
+  const shareCode    = $('#shareCode');
+  const adminModal   = $('#adminModal');
+  const adminPass    = $('#adminPass');
+  const adminError   = $('#adminError');
 
-  /* ---------------- State ---------------- */
+  /* ================= STATE ================= */
   const state = {
     role: null,          // 'host' | 'viewer'
-    code: ROOM_CODE,
+    code: null,
     peer: null,
     localStream: null,
-    conns: [],           // open data channels
-    calls: [],           // media connections
+    conns: [],
+    calls: [],
     chatOpen: false,
     unread: 0,
-    connected: false
+    radio: false,
+    boardText: ''
   };
+  let boardTimer = null;
 
-  /* ---------------- Helpers ---------------- */
+  /* ================= HELPERS ================= */
+  function genCode() {
+    let s = '';
+    for (let i = 0; i < CODE_LEN; i++) {
+      s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    }
+    return s;
+  }
+
   const timeString = ts => new Date(ts || Date.now())
     .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -358,14 +425,40 @@
   };
   const hideWaiting = () => waiting.classList.add('hidden');
 
-  /* ---------------- Chat UI ---------------- */
+  const setTileLive = () => {
+    tileBadge.innerHTML = '<span class="live-dot"></span>LIVE';
+  };
+  const setTileRadio = () => {
+    tileBadge.textContent = '📻 RADIO';
+  };
+
+  /* ================= BOARD ================= */
+  function setBoardView(text) {
+    if (!text) {
+      boardView.textContent = 'The host hasn’t written anything yet…';
+      boardView.classList.add('empty');
+    } else {
+      boardView.textContent = text;
+      boardView.classList.remove('empty');
+    }
+  }
+
+  boardInput.addEventListener('input', () => {
+    state.boardText = boardInput.value;
+    clearTimeout(boardTimer);
+    boardTimer = setTimeout(() => {
+      broadcast({ type: 'board', text: state.boardText });
+    }, 50);
+  });
+
+  /* ================= CHAT ================= */
   function addMessage(text, who, ts) {
     const wrap = document.createElement('div');
     wrap.className = 'msg ' + who;
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = text;          // textContent => XSS-safe
+    bubble.textContent = text;              // XSS-safe
     wrap.appendChild(bubble);
 
     if (who !== 'system') {
@@ -377,12 +470,9 @@
 
     const nearBottom =
       messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 90;
-
     messagesEl.appendChild(wrap);
-
     if (nearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    // Unread indicator when chat is collapsed on mobile
     if (who === 'them' && !state.chatOpen && window.innerWidth <= 820) {
       state.unread++;
       chatToggle.classList.add('has-unread');
@@ -392,7 +482,6 @@
   function sendChat(raw) {
     const text = raw.trim();
     if (!text) return;
-
     const payload = { type: 'chat', text, ts: Date.now() };
     addMessage(text, 'me', payload.ts);
 
@@ -409,16 +498,63 @@
 
     if (data.type === 'chat') {
       addMessage(data.text, 'them', data.ts);
-      // Host relays viewer messages to every other viewer
       if (state.role === 'host') {
+        // relay viewer messages to the other viewers
         state.conns.forEach(c => { if (c !== conn && c.open) c.send(data); });
       }
+    } else if (data.type === 'board') {
+      if (state.role === 'viewer') setBoardView(data.text);
     } else if (data.type === 'count' && state.role === 'viewer') {
       setViewerCount(data.count);
     }
   }
 
-  /* ---------------- Data connections ---------------- */
+  /* ================= SHARE ================= */
+  function setupShare(code) {
+    const url = location.origin + location.pathname + '#room=' + code;
+    const liveMsg = `🔴 I'm live right now on StreamLink! Watch here: ${url}`;
+    const codeMsg = `Join my StreamLink live — room code: ${code}\n${url}`;
+    shareLive.href = 'https://wa.me/?text=' + encodeURIComponent(liveMsg);
+    shareCode.href = 'https://wa.me/?text=' + encodeURIComponent(codeMsg);
+  }
+
+  shareBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    shareMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', e => {
+    if (!shareMenu.contains(e.target) && e.target !== shareBtn) {
+      shareMenu.classList.remove('open');
+    }
+  });
+
+  codePill.addEventListener('click', async () => {
+    if (!state.code) return;
+    const link = location.origin + location.pathname + '#room=' + state.code;
+    const original = codePill.innerHTML;
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+    codePill.textContent = 'Copied ✓';
+    setTimeout(() => { codePill.innerHTML = original; }, 1400);
+  });
+
+  /* ================= CONNECTIONS ================= */
+  function broadcast(payload) {
+    state.conns.forEach(c => { if (c.open) c.send(payload); });
+  }
+
+  function sendBoard(conn) {
+    if (conn.open) conn.send({ type: 'board', text: state.boardText });
+  }
+
   function wireConnection(conn) {
     conn.on('data', d => handleData(conn, d));
     conn.on('close', () => dropConnection(conn));
@@ -438,14 +574,10 @@
   function syncCount() {
     const n = state.conns.filter(c => c.open).length;
     setViewerCount(n);
-    const payload = { type: 'count', count: n };
-    state.conns.forEach(c => { if (c.open) c.send(payload); });
-
-    if (n > 0) hideWaiting();
-    else if (state.role === 'host') showWaiting('Waiting for viewers…');
+    broadcast({ type: 'count', count: n });
   }
 
-  /* ---------------- Host ---------------- */
+  /* ================= HOST ================= */
   async function goLive() {
     landingError.textContent = '';
 
@@ -471,18 +603,32 @@
 
     state.role = 'host';
     state.localStream = stream;
-    state.code = ROOM_CODE;
+    state.code = genCode();
+    state.boardText = '';
 
-    mainVideo.srcObject = stream;
-    mainVideo.muted = true;               // avoid feedback loop
-    mainVideo.classList.add('mirrored');
-    mainVideo.play().catch(() => {});
+    // Host sees themselves in the small square (mirrored)
+    hostVideo.srcObject = stream;
+    hostVideo.muted = true;
+    hostVideo.classList.add('mirrored');
+    hostVideo.play().catch(() => {});
 
     enterRoom();
+
+    // Host UI
     codeText.textContent = state.code;
+    setupShare(state.code);
+    boardInput.style.display = '';
+    boardView.style.display = 'none';
+    micBtn.style.display = '';
+    camBtn.style.display = '';
+    radioBtn.style.display = 'none';
+    endBtn.textContent = 'End';
+    setTileLive();
     setStatus('Connecting…', false);
-    showWaiting('Waiting for viewers…');
+    hideWaiting();
     setViewerCount(0);
+
+    setTimeout(() => boardInput.focus(), 300);
 
     createPeer(ID_PREFIX + state.code);
   }
@@ -502,23 +648,25 @@
       call.on('error', () => {});
     };
 
-    if (conn.open) startCall();
-    else conn.on('open', () => { startCall(); syncCount(); });
+    const onOpen = () => {
+      startCall();
+      sendBoard(conn);     // late joiners get the current board
+      syncCount();
+    };
+
+    if (conn.open) onOpen();
+    else conn.on('open', onOpen);
 
     conn.on('close', () => syncCount());
   }
 
-  /* ---------------- Viewer ---------------- */
+  /* ================= VIEWER ================= */
   function joinStream(rawCode) {
     landingError.textContent = '';
-    const code = (rawCode || '').trim();
+    const code = (rawCode || '').trim().toUpperCase();
 
     if (code.length !== CODE_LEN) {
-      landingError.textContent = 'Please enter the ' + CODE_LEN + '-digit room code.';
-      return;
-    }
-    if (code !== ROOM_CODE) {
-      landingError.textContent = 'Wrong room code. The code for this stream is ' + ROOM_CODE + '.';
+      landingError.textContent = 'Enter the ' + CODE_LEN + '-character room code.';
       return;
     }
 
@@ -526,16 +674,23 @@
     state.code = code;
 
     enterRoom();
-    codeText.textContent = code;
-    setStatus('Connecting…', false);
-    showWaiting('Connecting to the stream…');
-    setViewerCount(1);
 
-    // Viewers don't publish media, so hide the host-only controls
+    codeText.textContent = code;
+    setupShare(code);
+    boardInput.style.display = 'none';
+    boardView.style.display = '';
+    setBoardView('');
     micBtn.style.display = 'none';
     camBtn.style.display = 'none';
+    radioBtn.style.display = '';
     endBtn.textContent = 'Leave';
-    mainVideo.muted = true;
+
+    hostVideo.classList.remove('mirrored');
+    hostVideo.muted = true;
+    setTileLive();
+    setStatus('Connecting…', false);
+    showWaiting('Connecting to the live…');
+    setViewerCount(1);
 
     createPeer(null);
   }
@@ -543,50 +698,74 @@
   function onIncomingCall(call) {
     if (state.role !== 'viewer') return;
 
-    try { call.answer(); } catch (e) { /* recv-only answer */ }
+    try { call.answer(); } catch (e) {}
     state.calls.push(call);
 
-    call.on('stream', remoteStream => {
-      mainVideo.srcObject = remoteStream;
-      mainVideo.classList.remove('mirrored');
+    call.on('stream', remote => {
+      hostVideo.srcObject = remote;
+      hostVideo.muted = false;
+      hostVideo.play().catch(() => {
+        hostVideo.muted = true;
+        hostVideo.play().catch(() => {});
+        addMessage('Tap the video square to enable sound.', 'system');
+      });
+
       hideWaiting();
       setStatus('Live', true);
-
-      // Autoplay with sound may be blocked until a gesture — fall back to muted
-      mainVideo.muted = false;
-      mainVideo.play().catch(() => {
-        mainVideo.muted = true;
-        mainVideo.play().catch(() => {});
-        addMessage('Tap the video to enable sound.', 'system');
-      });
     });
 
     call.on('close', () => {
-      setStatus('Stream ended', false);
-      showWaiting('The host has ended the stream.');
+      setStatus('Live ended', false);
+      showWaiting('The host has ended the live.');
     });
   }
 
-  /* ---------------- Peer lifecycle ---------------- */
+  // Tap the small square to unmute if autoplay was blocked
+  videoTile.addEventListener('click', () => {
+    if (state.role === 'viewer' && hostVideo.muted && hostVideo.srcObject) {
+      hostVideo.muted = false;
+      hostVideo.play().catch(() => {});
+    }
+  });
+
+  /* ================= RADIO MODE ================= */
+  radioBtn.addEventListener('click', () => {
+    if (state.role !== 'viewer') return;
+    state.radio = !state.radio;
+    stage.classList.toggle('radio', state.radio);
+    radioBtn.classList.toggle('on', state.radio);
+    radioBtn.textContent = state.radio ? '📻 Radio ON' : '📻 Radio';
+
+    if (state.radio) {
+      setTileRadio();
+      // stop decoding video locally — audio keeps playing
+      const vid = hostVideo.srcObject && hostVideo.srcObject.getVideoTracks()[0];
+      if (vid) vid.enabled = false;
+    } else {
+      setTileLive();
+      const vid = hostVideo.srcObject && hostVideo.srcObject.getVideoTracks()[0];
+      if (vid) vid.enabled = true;
+      hostVideo.play().catch(() => {});
+    }
+  });
+
+  /* ================= PEER LIFECYCLE ================= */
   function createPeer(id) {
     state.peer = id ? new Peer(id, { debug: 1 }) : new Peer({ debug: 1 });
 
     state.peer.on('open', () => {
       if (state.role === 'host') {
         setStatus('Live', true);
-        addMessage('You are live. Room code: ' + ROOM_CODE + '.', 'system');
+        addMessage('You are live. Room code: ' + state.code + '.', 'system');
       } else {
         const conn = state.peer.connect(ID_PREFIX + state.code, { reliable: true });
         state.conns.push(conn);
         wireConnection(conn);
 
-        conn.on('open', () => {
-          state.connected = true;
-          setStatus('Connected — waiting for video…', true);
-        });
+        conn.on('open', () => setStatus('Connected — waiting for video…', true));
         conn.on('close', () => {
           setStatus('Disconnected', false);
-          showWaiting('The host has ended the stream.');
+          showWaiting('The host has ended the live.');
         });
       }
     });
@@ -603,23 +782,26 @@
 
       if (type === 'peer-unavailable') {
         if (state.role === 'viewer') {
-          landingError.textContent = 'Nobody is live on code ' + ROOM_CODE + ' right now. Ask the host to go live first.';
+          landingError.textContent = 'No live found with that code. Check it and try again.';
           leaveRoom();
         }
       } else if (type === 'unavailable-id' && state.role === 'host') {
-        // Fixed code, so the room is already taken by another host
-        landingError.textContent = 'Room ' + ROOM_CODE + ' is already live on another device.';
-        leaveRoom();
+        // extremely rare random-code collision → regenerate once
+        state.code = genCode();
+        codeText.textContent = state.code;
+        setupShare(state.code);
+        try { state.peer.destroy(); } catch (e) {}
+        createPeer(ID_PREFIX + state.code);
       } else if (type === 'network' || type === 'server-error' || type === 'socket-error') {
         setStatus('Connection problem', false);
-        if (state.role === 'viewer') showWaiting('Connection lost. Trying to reconnect…');
+        if (state.role === 'viewer') showWaiting('Connection lost. Reconnecting…');
       } else {
         console.warn('[PeerJS]', err);
       }
     });
   }
 
-  /* ---------------- Navigation ---------------- */
+  /* ================= NAVIGATION ================= */
   function enterRoom() {
     landing.classList.remove('active');
     room.classList.add('active');
@@ -627,41 +809,53 @@
   }
 
   function leaveRoom() {
-    // Tear down peer
     try { state.peer && state.peer.destroy(); } catch (e) {}
     state.peer = null;
 
-    // Stop local media
     if (state.localStream) {
       state.localStream.getTracks().forEach(t => t.stop());
       state.localStream = null;
     }
 
-    mainVideo.srcObject = null;
-    mainVideo.classList.remove('mirrored');
+    hostVideo.srcObject = null;
+    hostVideo.classList.remove('mirrored');
 
     state.conns = [];
     state.calls = [];
     state.role = null;
-    state.code = ROOM_CODE;
-    state.connected = false;
+    state.code = null;
+    state.radio = false;
+    state.boardText = '';
+    state.chatOpen = false;
     state.unread = 0;
 
-    chatToggle.classList.remove('has-unread');
-    messagesEl.innerHTML = '';
-    chatPanel.classList.remove('open');
+    stage.classList.remove('radio');
+    boardInput.value = '';
+    boardInput.style.display = '';
+    boardView.style.display = 'none';
+    boardView.textContent = '';
+    radioBtn.textContent = '📻 Radio';
+    radioBtn.classList.remove('on');
+    radioBtn.style.display = 'none';
     micBtn.style.display = '';
     camBtn.style.display = '';
     endBtn.textContent = 'End';
+    setTileLive();
+    chatToggle.classList.remove('has-unread');
+    messagesEl.innerHTML = '';
+    chatPanel.classList.remove('open');
+    shareMenu.classList.remove('open');
     setStatus('Connecting…', false);
-    codeText.textContent = ROOM_CODE;
+    codeText.textContent = '------';
+    hideWaiting();
 
     room.classList.remove('active');
     landing.classList.add('active');
-    codeInput.value = ROOM_CODE;
+    landingError.textContent = '';
+    codeInput.value = '';
   }
 
-  /* ---------------- Media controls (host) ---------------- */
+  /* ================= MEDIA CONTROLS (HOST) ================= */
   micBtn.addEventListener('click', () => {
     const track = state.localStream && state.localStream.getAudioTracks()[0];
     if (!track) return;
@@ -679,30 +873,11 @@
   });
 
   endBtn.addEventListener('click', () => {
-    if (state.role === 'host' && !confirm('End the stream for everyone?')) return;
+    if (state.role === 'host' && !confirm('End the live for everyone?')) return;
     leaveRoom();
   });
 
-  /* ---------------- Copy invite link ---------------- */
-  codePill.addEventListener('click', async () => {
-    const link = location.origin + location.pathname + '#room=' + ROOM_CODE;
-    const original = codePill.innerHTML;
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch (e) {
-      // Clipboard fallback
-      const ta = document.createElement('textarea');
-      ta.value = link;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); } catch (_) {}
-      document.body.removeChild(ta);
-    }
-    codePill.textContent = 'Link copied ✓';
-    setTimeout(() => { codePill.innerHTML = original; }, 1400);
-  });
-
-  /* ---------------- Chat toggling (mobile) ---------------- */
+  /* ================= CHAT TOGGLE (MOBILE) ================= */
   chatToggle.addEventListener('click', () => {
     state.chatOpen = !state.chatOpen;
     chatPanel.classList.toggle('open', state.chatOpen);
@@ -721,26 +896,56 @@
     msgInput.focus();
   });
 
-  /* ---------------- Landing actions ---------------- */
-  $('#btnGoLive').addEventListener('click', goLive);
+  /* ================= ADMIN GATE ================= */
+  function openAdmin() {
+    adminPass.value = '';
+    adminError.textContent = '';
+    adminModal.classList.add('open');
+    setTimeout(() => adminPass.focus(), 60);
+  }
+  function closeAdmin() {
+    adminModal.classList.remove('open');
+  }
+  function tryAdmin() {
+    if (adminPass.value !== ADMIN_PASSWORD) {
+      adminError.textContent = 'Incorrect admin password.';
+      adminPass.select();
+      return;
+    }
+    closeAdmin();
+    goLive();
+  }
+
+  $('#btnGoLive').addEventListener('click', openAdmin);
+  $('#adminCancel').addEventListener('click', closeAdmin);
+  $('#adminConfirm').addEventListener('click', tryAdmin);
+  adminPass.addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryAdmin();
+    if (e.key === 'Escape') closeAdmin();
+  });
+  adminModal.addEventListener('click', e => {
+    if (e.target === adminModal) closeAdmin();
+  });
+
+  /* ================= LANDING ACTIONS ================= */
   $('#btnJoin').addEventListener('click', () => joinStream(codeInput.value));
   codeInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') joinStream(codeInput.value);
   });
   codeInput.addEventListener('input', () => {
-    codeInput.value = codeInput.value.replace(/[^0-9]/g, '').slice(0, CODE_LEN);
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LEN);
   });
 
-  /* ---------------- Deep link (#room=1234) ---------------- */
+  /* ================= DEEP LINK (#room=ABC123) ================= */
   (function handleHash() {
-    const m = location.hash.match(/room=(\d{4})/);
+    const m = location.hash.match(/room=([A-Za-z0-9]{6})/);
     if (m) {
-      codeInput.value = m[1];
-      landingError.textContent = 'Press "Join" to watch this stream.';
+      codeInput.value = m[1].toUpperCase();
+      landingError.textContent = 'Press "Join" to watch this live.';
     }
   })();
 
-  /* ---------------- Cleanup ---------------- */
+  /* ================= CLEANUP ================= */
   window.addEventListener('beforeunload', () => {
     try { state.peer && state.peer.destroy(); } catch (e) {}
     if (state.localStream) state.localStream.getTracks().forEach(t => t.stop());
