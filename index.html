@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StreamLink — Live Board, Radio & Chat</title>
+<title>StreamLink — Live Board, Radio, Filters & Flash</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root{
@@ -98,11 +98,15 @@
   #boardInput::-webkit-scrollbar,#boardView::-webkit-scrollbar{width:6px}
   #boardInput::-webkit-scrollbar-thumb,#boardView::-webkit-scrollbar-thumb{background:#2a3448;border-radius:99px}
 
+  /* ---------- SCREEN LIGHT FALLBACK ---------- */
+  .screenlight{position:absolute;inset:0;z-index:8;background:#fff;display:none}
+  .screenlight.on{display:block}
+
   /* ---------- VIDEO TILE ---------- */
   .video-tile{position:absolute;right:20px;bottom:98px;width:190px;aspect-ratio:1/1;z-index:13;
     border-radius:18px;overflow:hidden;background:#0b0f16;border:1px solid var(--border);
-    box-shadow:0 18px 50px rgba(0,0,0,.6);cursor:pointer}
-  #hostVideo{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .25s}
+    box-shadow:0 18px 50px rgba(0,0,0,.6);cursor:pointer;transition:bottom .22s ease}
+  #hostVideo{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .25s, filter .2s}
   .stage.radio #hostVideo{opacity:0}
   .tile-eq{position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;gap:5px;
     padding:20px;background:linear-gradient(160deg,#14203a,#0a0e16)}
@@ -160,6 +164,24 @@
     border:2px solid rgba(141,154,179,.28);border-top-color:var(--accent);animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
+  /* ---------- FILTER STRIP ---------- */
+  .filters-bar{position:absolute;left:0;right:0;bottom:calc(90px + env(safe-area-inset-bottom));
+    z-index:22;padding:10px 14px 12px;display:none;
+    background:linear-gradient(0deg,rgba(5,7,11,.94),rgba(5,7,11,.55),transparent)}
+  .filters-bar.open{display:block}
+  .filters-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+  .filters-scroll::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:8px 12px 7px;border-radius:13px;background:rgba(23,30,44,.94);
+    border:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:.2px;
+    color:var(--muted);white-space:nowrap;transition:border-color .16s, background .16s, color .16s}
+  .chip .sw{width:40px;height:26px;border-radius:7px;
+    background:linear-gradient(135deg,#ffb26e,#6ea8ff 46%,#b48cff);display:block}
+  .chip:hover{border-color:#33415c}
+  .chip.active{border-color:var(--accent);color:#fff;background:rgba(79,140,255,.2)}
+  .stage.filters-open .video-tile{bottom:184px}
+
+  /* ---------- BOTTOM CONTROLS ---------- */
   .overlay-bottom{position:absolute;left:0;right:0;bottom:0;z-index:20;display:flex;align-items:center;
     justify-content:center;gap:11px;padding:18px 14px calc(18px + env(safe-area-inset-bottom));
     background:linear-gradient(0deg,rgba(5,7,11,.9),transparent)}
@@ -167,11 +189,12 @@
     padding:0 16px;border-radius:16px;background:rgba(23,30,44,.92);border:1px solid var(--border);
     font-size:14px;font-weight:600;color:var(--text);
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-    transition:background .18s, transform .12s}
+    transition:background .18s, transform .12s, border-color .18s, color .18s}
   .ctrl:hover{background:rgba(34,44,63,.95)}
   .ctrl:active{transform:scale(.95)}
   .ctrl.off{background:rgba(255,77,106,.16);border-color:rgba(255,77,106,.4);color:#ff8fa2}
   .ctrl.on{background:rgba(79,140,255,.2);border-color:rgba(79,140,255,.55);color:#a6c4ff}
+  .ctrl.flash.on{background:rgba(255,214,79,.22);border-color:rgba(255,214,79,.6);color:#ffdf7a}
   .ctrl.danger{background:linear-gradient(120deg,#e8394f,#ff4d6a);border-color:transparent;color:#fff}
   .ctrl.danger:hover{filter:brightness(1.1)}
 
@@ -235,6 +258,10 @@
     .tile-eq span{width:4px}
     .tile-badge{font-size:8px;padding:3px 6px;left:6px;top:6px}
     .share-menu{right:-4px}
+    .stage.filters-open .video-tile{bottom:168px}
+    .filters-bar{bottom:calc(82px + env(safe-area-inset-bottom));padding:8px 10px 10px}
+    .chip{padding:7px 10px 6px;font-size:10px}
+    .chip .sw{width:34px;height:22px}
   }
   @media (max-width:560px){
     .copy-hint{display:none}
@@ -250,8 +277,8 @@
 <div id="landing" class="screen active">
   <div class="card">
     <div class="logo"><span class="dot"></span> StreamLink</div>
-    <h1>Go live from your camera.<br><span>Board, radio & chat.</span></h1>
-    <p class="sub">Only the admin can start a live. Every broadcast gets a fresh room code — share it and viewers can watch, follow your live board, switch to radio mode and chat.</p>
+    <h1>Go live from your camera.<br><span>Board, radio, filters & flash.</span></h1>
+    <p class="sub">Only the admin can start a live. Every broadcast gets a fresh room code — viewers can watch, follow your live board, switch to radio mode, chat, and see your filters.</p>
 
     <button id="btnGoLive" class="btn primary"><span>●</span> Go Live (Admin)</button>
 
@@ -292,6 +319,9 @@
       </div>
     </div>
 
+    <!-- Screen-light fallback (when the device has no torch) -->
+    <div class="screenlight" id="screenlight"></div>
+
     <div class="video-tile" id="videoTile">
       <video id="hostVideo" playsinline autoplay muted></video>
       <div class="tile-eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
@@ -316,10 +346,17 @@
 
     <div class="waiting hidden" id="waiting"><span class="spinner"></span><span id="waitingText">Connecting…</span></div>
 
+    <!-- Filter strip -->
+    <div class="filters-bar" id="filtersBar">
+      <div class="filters-scroll" id="filtersScroll"></div>
+    </div>
+
     <div class="overlay-bottom">
       <button class="ctrl" id="micBtn" title="Toggle microphone">🎤</button>
       <button class="ctrl" id="camBtn" title="Toggle camera">📹</button>
-      <button class="ctrl" id="radioBtn" title="Radio mode" style="display:none">📻 Radio</button>
+      <button class="ctrl flash" id="flashBtn" title="LED flash / light" style="display:none">🔦 Flash</button>
+      <button class="ctrl" id="filtersBtn" title="Video filters" style="display:none">✨</button>
+      <button class="ctrl" id="radioBtn" title="Radio mode" style="display:none">📻</button>
       <button class="ctrl danger" id="endBtn" title="End stream">End</button>
     </div>
   </div>
@@ -343,9 +380,22 @@
 
   /* ================= CONFIG ================= */
   const ADMIN_PASSWORD = 'admin123';                 // ← change this
-  const ID_PREFIX      = 'streamlink-v3-';           // PeerJS namespace
+  const ID_PREFIX      = 'streamlink-v4-';           // PeerJS namespace
   const CODE_ALPHABET  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const CODE_LEN       = 6;
+
+  /* Video filter presets (applied with CSS, synced to viewers) */
+  const FILTERS = [
+    { id:'none',    label:'Normal',  css:'none' },
+    { id:'vivid',   label:'Vivid',   css:'saturate(1.55) contrast(1.12)' },
+    { id:'warm',    label:'Warm',    css:'sepia(.22) saturate(1.25) brightness(1.05) hue-rotate(-6deg)' },
+    { id:'cool',    label:'Cool',    css:'saturate(1.1) hue-rotate(14deg) brightness(1.03) contrast(1.05)' },
+    { id:'mono',    label:'B&W',     css:'grayscale(1) contrast(1.12) brightness(1.03)' },
+    { id:'vintage', label:'Vintage', css:'sepia(.55) contrast(1.08) saturate(.85) brightness(1.02)' },
+    { id:'cinema',  label:'Cinema',  css:'contrast(1.22) saturate(.9) brightness(.96) hue-rotate(-8deg)' },
+    { id:'soft',    label:'Soft',    css:'saturate(1.08) brightness(1.09) contrast(.94)' },
+    { id:'noir',    label:'Noir',    css:'grayscale(1) contrast(1.42) brightness(.95)' }
+  ];
 
   /* ================= ELEMENTS ================= */
   const $ = s => document.querySelector(s);
@@ -355,6 +405,7 @@
   const hostVideo    = $('#hostVideo');
   const videoTile    = $('#videoTile');
   const tileBadge    = $('#tileBadge');
+  const screenlight  = $('#screenlight');
   const codeInput    = $('#codeInput');
   const landingError = $('#landingError');
   const codeText     = $('#codeText');
@@ -365,8 +416,12 @@
   const waitingText  = $('#waitingText');
   const micBtn       = $('#micBtn');
   const camBtn       = $('#camBtn');
+  const flashBtn     = $('#flashBtn');
+  const filtersBtn   = $('#filtersBtn');
   const radioBtn     = $('#radioBtn');
   const endBtn       = $('#endBtn');
+  const filtersBar   = $('#filtersBar');
+  const filtersScroll= $('#filtersScroll');
   const boardInput   = $('#boardInput');
   const boardView    = $('#boardView');
   const messagesEl   = $('#messages');
@@ -394,7 +449,13 @@
     chatOpen: false,
     unread: 0,
     radio: false,
-    boardText: ''
+    boardText: '',
+    filterId: 'none',
+    filterCss: 'none',
+    torchSupported: false,
+    torch: false,
+    screenLight: false,
+    filtersOpen: false
   };
   let boardTimer = null;
 
@@ -425,12 +486,105 @@
   };
   const hideWaiting = () => waiting.classList.add('hidden');
 
-  const setTileLive = () => {
-    tileBadge.innerHTML = '<span class="live-dot"></span>LIVE';
-  };
-  const setTileRadio = () => {
-    tileBadge.textContent = '📻 RADIO';
-  };
+  const setTileLive = () => { tileBadge.innerHTML = '<span class="live-dot"></span>LIVE'; };
+  const setTileRadio = () => { tileBadge.textContent = '📻 RADIO'; };
+
+  /* ================= FILTERS ================= */
+  function applyFilter() {
+    hostVideo.style.filter = state.filterCss === 'none' ? 'none' : state.filterCss;
+  }
+
+  function buildFilterChips() {
+    filtersScroll.innerHTML = '';
+    FILTERS.forEach(f => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (f.id === state.filterId ? ' active' : '');
+      chip.dataset.id = f.id;
+
+      const sw = document.createElement('span');
+      sw.className = 'sw';
+      sw.style.filter = f.css === 'none' ? 'none' : f.css;
+
+      const label = document.createElement('span');
+      label.textContent = f.label;
+
+      chip.appendChild(sw);
+      chip.appendChild(label);
+      chip.addEventListener('click', () => selectFilter(f.id));
+      filtersScroll.appendChild(chip);
+    });
+  }
+
+  function selectFilter(id) {
+    const f = FILTERS.find(x => x.id === id) || FILTERS[0];
+    state.filterId = f.id;
+    state.filterCss = f.css;
+    applyFilter();
+
+    filtersScroll.querySelectorAll('.chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.id === f.id);
+    });
+
+    if (state.role === 'host') broadcast({ type: 'filter', id: f.id });
+  }
+
+  function toggleFiltersBar() {
+    state.filtersOpen = !state.filtersOpen;
+    filtersBar.classList.toggle('open', state.filtersOpen);
+    stage.classList.toggle('filters-open', state.filtersOpen);
+    filtersBtn.classList.toggle('on', state.filtersOpen);
+  }
+
+  /* ================= LED FLASH / SCREEN LIGHT ================= */
+  function updateFlashButton() {
+    const on = state.torch || state.screenLight;
+    flashBtn.classList.toggle('on', on);
+    if (state.torchSupported) {
+      flashBtn.textContent = state.torch ? '🔦 On' : '🔦 Flash';
+    } else {
+      flashBtn.textContent = state.screenLight ? '💡 On' : '💡 Light';
+    }
+  }
+
+  function toggleScreenLight() {
+    state.screenLight = !state.screenLight;
+    screenlight.classList.toggle('on', state.screenLight);
+    updateFlashButton();
+  }
+
+  async function toggleFlash() {
+    const track = state.localStream && state.localStream.getVideoTracks()[0];
+    if (!track) return;
+
+    if (state.torchSupported) {
+      const next = !state.torch;
+      try {
+        await track.applyConstraints({ advanced: [{ torch: next }] });
+        state.torch = next;
+        updateFlashButton();
+        return;
+      } catch (e) {
+        // Torch failed — permanently fall back to the screen light
+        state.torchSupported = false;
+        flashBtn.textContent = '💡 Light';
+      }
+    }
+    toggleScreenLight();
+  }
+
+  async function disableFlash() {
+    if (state.torch && state.localStream) {
+      const track = state.localStream.getVideoTracks()[0];
+      if (track) {
+        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
+      }
+    }
+    state.torch = false;
+    state.screenLight = false;
+    screenlight.classList.remove('on');
+    flashBtn.classList.remove('on');
+  }
 
   /* ================= BOARD ================= */
   function setBoardView(text) {
@@ -499,11 +653,17 @@
     if (data.type === 'chat') {
       addMessage(data.text, 'them', data.ts);
       if (state.role === 'host') {
-        // relay viewer messages to the other viewers
         state.conns.forEach(c => { if (c !== conn && c.open) c.send(data); });
       }
     } else if (data.type === 'board') {
       if (state.role === 'viewer') setBoardView(data.text);
+    } else if (data.type === 'filter') {
+      if (state.role === 'viewer') {
+        const f = FILTERS.find(x => x.id === data.id) || FILTERS[0];
+        state.filterId = f.id;
+        state.filterCss = f.css;
+        applyFilter();
+      }
     } else if (data.type === 'count' && state.role === 'viewer') {
       setViewerCount(data.count);
     }
@@ -551,8 +711,10 @@
     state.conns.forEach(c => { if (c.open) c.send(payload); });
   }
 
-  function sendBoard(conn) {
-    if (conn.open) conn.send({ type: 'board', text: state.boardText });
+  function sendInitialState(conn) {
+    if (!conn.open) return;
+    conn.send({ type: 'board', text: state.boardText });
+    conn.send({ type: 'filter', id: state.filterId });
   }
 
   function wireConnection(conn) {
@@ -605,23 +767,49 @@
     state.localStream = stream;
     state.code = genCode();
     state.boardText = '';
+    state.filterId = 'none';
+    state.filterCss = 'none';
+    state.torch = false;
+    state.screenLight = false;
+    state.filtersOpen = false;
 
-    // Host sees themselves in the small square (mirrored)
+    // Detect hardware torch support
+    state.torchSupported = false;
+    try {
+      const track = stream.getVideoTracks()[0];
+      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+      state.torchSupported = !!(caps && caps.torch);
+    } catch (e) { state.torchSupported = false; }
+
     hostVideo.srcObject = stream;
     hostVideo.muted = true;
     hostVideo.classList.add('mirrored');
+    hostVideo.style.filter = 'none';
     hostVideo.play().catch(() => {});
 
     enterRoom();
 
-    // Host UI
     codeText.textContent = state.code;
     setupShare(state.code);
+
     boardInput.style.display = '';
     boardView.style.display = 'none';
+    boardInput.value = '';
+    boardView.textContent = '';
+
     micBtn.style.display = '';
     camBtn.style.display = '';
     radioBtn.style.display = 'none';
+
+    flashBtn.style.display = '';
+    updateFlashButton();
+
+    filtersBtn.style.display = '';
+    filtersBtn.classList.remove('on');
+    filtersBar.classList.remove('open');
+    stage.classList.remove('filters-open');
+    buildFilterChips();
+
     endBtn.textContent = 'End';
     setTileLive();
     setStatus('Connecting…', false);
@@ -650,7 +838,7 @@
 
     const onOpen = () => {
       startCall();
-      sendBoard(conn);     // late joiners get the current board
+      sendInitialState(conn);   // late joiners get current board + filter
       syncCount();
     };
 
@@ -672,21 +860,34 @@
 
     state.role = 'viewer';
     state.code = code;
+    state.filterId = 'none';
+    state.filterCss = 'none';
+    state.radio = false;
+    state.torch = false;
+    state.screenLight = false;
+    state.filtersOpen = false;
 
     enterRoom();
 
     codeText.textContent = code;
     setupShare(code);
+
     boardInput.style.display = 'none';
     boardView.style.display = '';
     setBoardView('');
+
     micBtn.style.display = 'none';
     camBtn.style.display = 'none';
+    flashBtn.style.display = 'none';
+    filtersBtn.style.display = 'none';
+    filtersBar.classList.remove('open');
+    stage.classList.remove('filters-open');
     radioBtn.style.display = '';
     endBtn.textContent = 'Leave';
 
     hostVideo.classList.remove('mirrored');
     hostVideo.muted = true;
+    hostVideo.style.filter = 'none';
     setTileLive();
     setStatus('Connecting…', false);
     showWaiting('Connecting to the live…');
@@ -704,6 +905,7 @@
     call.on('stream', remote => {
       hostVideo.srcObject = remote;
       hostVideo.muted = false;
+      applyFilter();
       hostVideo.play().catch(() => {
         hostVideo.muted = true;
         hostVideo.play().catch(() => {});
@@ -720,7 +922,6 @@
     });
   }
 
-  // Tap the small square to unmute if autoplay was blocked
   videoTile.addEventListener('click', () => {
     if (state.role === 'viewer' && hostVideo.muted && hostVideo.srcObject) {
       hostVideo.muted = false;
@@ -734,17 +935,15 @@
     state.radio = !state.radio;
     stage.classList.toggle('radio', state.radio);
     radioBtn.classList.toggle('on', state.radio);
-    radioBtn.textContent = state.radio ? '📻 Radio ON' : '📻 Radio';
+    radioBtn.textContent = state.radio ? '📻 On' : '📻 Radio';
 
+    const track = hostVideo.srcObject && hostVideo.srcObject.getVideoTracks()[0];
     if (state.radio) {
       setTileRadio();
-      // stop decoding video locally — audio keeps playing
-      const vid = hostVideo.srcObject && hostVideo.srcObject.getVideoTracks()[0];
-      if (vid) vid.enabled = false;
+      if (track) track.enabled = false;
     } else {
       setTileLive();
-      const vid = hostVideo.srcObject && hostVideo.srcObject.getVideoTracks()[0];
-      if (vid) vid.enabled = true;
+      if (track) track.enabled = true;
       hostVideo.play().catch(() => {});
     }
   });
@@ -786,7 +985,6 @@
           leaveRoom();
         }
       } else if (type === 'unavailable-id' && state.role === 'host') {
-        // extremely rare random-code collision → regenerate once
         state.code = genCode();
         codeText.textContent = state.code;
         setupShare(state.code);
@@ -809,6 +1007,8 @@
   }
 
   function leaveRoom() {
+    disableFlash();
+
     try { state.peer && state.peer.destroy(); } catch (e) {}
     state.peer = null;
 
@@ -819,6 +1019,7 @@
 
     hostVideo.srcObject = null;
     hostVideo.classList.remove('mirrored');
+    hostVideo.style.filter = 'none';
 
     state.conns = [];
     state.calls = [];
@@ -828,18 +1029,33 @@
     state.boardText = '';
     state.chatOpen = false;
     state.unread = 0;
+    state.filterId = 'none';
+    state.filterCss = 'none';
+    state.filtersOpen = false;
+    state.torchSupported = false;
 
-    stage.classList.remove('radio');
+    stage.classList.remove('radio', 'filters-open');
+    screenlight.classList.remove('on');
+    filtersBar.classList.remove('open');
+    filtersBtn.classList.remove('on');
+    flashBtn.classList.remove('on');
+    filtersScroll.innerHTML = '';
+
     boardInput.value = '';
     boardInput.style.display = '';
     boardView.style.display = 'none';
     boardView.textContent = '';
+
     radioBtn.textContent = '📻 Radio';
     radioBtn.classList.remove('on');
     radioBtn.style.display = 'none';
+
     micBtn.style.display = '';
     camBtn.style.display = '';
+    flashBtn.style.display = 'none';
+    filtersBtn.style.display = 'none';
     endBtn.textContent = 'End';
+
     setTileLive();
     chatToggle.classList.remove('has-unread');
     messagesEl.innerHTML = '';
@@ -871,6 +1087,9 @@
     camBtn.classList.toggle('off', !track.enabled);
     camBtn.textContent = track.enabled ? '📹' : '🚫';
   });
+
+  flashBtn.addEventListener('click', toggleFlash);
+  filtersBtn.addEventListener('click', toggleFiltersBar);
 
   endBtn.addEventListener('click', () => {
     if (state.role === 'host' && !confirm('End the live for everyone?')) return;
