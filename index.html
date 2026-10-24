@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StreamLink — Live Stage, Recording, Waves & Filters</title>
+<title>StreamLink — Live Stage, Colors, Recording & Flip Camera</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root{
@@ -89,10 +89,20 @@
 
   /* ---------- BOARD ---------- */
   .board{position:absolute;inset:0;display:flex;flex-direction:column;
-    padding:84px 34px 250px 34px;z-index:5}
+    padding:84px 34px 250px 34px;z-index:5;background:transparent}
   .board-label{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.6px;
     text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;flex-shrink:0}
-  .board-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+  .board-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);flex-shrink:0}
+  .board-colors{display:none;gap:6px;margin-left:auto;align-items:center}
+  .board-colors.show{display:flex}
+  .swatch-label{position:relative;display:flex;align-items:center;gap:5px;cursor:pointer;
+    font-size:10px;font-weight:700;letter-spacing:.4px;padding:4px 8px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--border);color:var(--muted);
+    text-transform:none;transition:border-color .16s}
+  .swatch-label:hover{border-color:#33415c}
+  .swatch-label input[type=color]{position:absolute;inset:0;opacity:0;cursor:pointer;
+    width:100%;height:100%;border:none;padding:0}
+  .swatch{width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.25);flex-shrink:0}
   .board-body{flex:1;min-height:0;display:flex}
   #boardInput,#boardView{flex:1;min-width:0;width:100%;background:transparent;border:none;outline:none;
     resize:none;color:var(--text);font-size:26px;line-height:1.5;font-weight:600;letter-spacing:-.2px}
@@ -106,6 +116,9 @@
   /* ---------- SCREEN LIGHT ---------- */
   .screenlight{position:absolute;inset:0;z-index:8;background:#fff;display:none}
   .screenlight.on{display:block}
+
+  /* ---------- MIRROR ---------- */
+  video.mirrored{transform:scaleX(-1)}
 
   /* ---------- TILES STRIP ---------- */
   .tiles-strip{position:absolute;left:20px;right:20px;bottom:92px;z-index:13;
@@ -293,7 +306,6 @@
     #chatToggle{display:flex}
     .ctrl{min-width:48px;height:48px;padding:0 13px;font-size:13px}
     h1{font-size:22px}
-
     .board{padding:72px 18px 220px 18px}
     #boardInput,#boardView{font-size:19px}
     .tiles-strip{left:12px;right:12px;bottom:84px;gap:8px}
@@ -307,11 +319,15 @@
     .chip{padding:7px 10px 6px;font-size:10px}
     .chip .sw{width:34px;height:22px}
     .requests{top:62px;right:12px;width:240px}
+    .board-colors{gap:4px}
+    .swatch-label{padding:3px 6px;font-size:9px}
+    .swatch{width:13px;height:13px}
   }
   @media (max-width:560px){
     .copy-hint{display:none}
     .share-label{display:none}
     .pill{padding:7px 10px;font-size:12px}
+    .board-label{font-size:10px;letter-spacing:1px}
   }
   @media (min-width:821px){ #chatToggle{display:none} }
 </style>
@@ -322,13 +338,10 @@
 <div id="landing" class="screen active">
   <div class="card">
     <div class="logo"><span class="dot"></span> StreamLink</div>
-    <h1>Go live from your camera.<br><span>Board, radio, filters, guests & recording.</span></h1>
-    <p class="sub">Only the admin can start a live. Viewers can wave to join the stage — up to 8 guests with camera or radio mode. Admin can record the live and save it as MP4 (or WebM).</p>
-
+    <h1>Go live from your camera.<br><span>Board colors, flip camera & guests.</span></h1>
+    <p class="sub">Only the admin can start a live. Customize board text & background colors, flip between front and back cameras, record the show as MP4/WebM, and bring up to 8 guests onto the stage.</p>
     <button id="btnGoLive" class="btn primary"><span>●</span> Go Live (Admin)</button>
-
     <div class="divider">or join a live</div>
-
     <div class="join-row">
       <input id="codeInput" placeholder="Room code" maxlength="6" autocomplete="off" spellcheck="false">
       <button id="btnJoin" class="btn">Join</button>
@@ -373,8 +386,23 @@
 <div id="room" class="screen">
   <div class="stage" id="stage">
 
-    <div class="board">
-      <div class="board-label"><span class="board-dot"></span> On‑air board</div>
+    <div class="board" id="board">
+      <div class="board-label">
+        <span class="board-dot"></span>
+        <span>On‑air board</span>
+        <div class="board-colors" id="boardColors">
+          <label class="swatch-label" title="Board text color">
+            <span class="swatch" id="boardTextSwatch" style="background:#e9eefb"></span>
+            <span>TEXT</span>
+            <input type="color" id="boardTextColor" value="#e9eefb">
+          </label>
+          <label class="swatch-label" title="Board background color">
+            <span class="swatch" id="boardBgSwatch" style="background:#0a0d13"></span>
+            <span>BG</span>
+            <input type="color" id="boardBgColor" value="#0a0d13">
+          </label>
+        </div>
+      </div>
       <div class="board-body">
         <textarea id="boardInput" spellcheck="false"
           placeholder="Start typing — everyone watching will see it live…"></textarea>
@@ -422,11 +450,12 @@
     <div class="overlay-bottom" id="overlayBottom">
       <button class="ctrl" id="micBtn" title="Toggle microphone" style="display:none">🎤</button>
       <button class="ctrl" id="camBtn" title="Toggle camera" style="display:none">📹</button>
+      <button class="ctrl" id="flipBtn" title="Switch front/back camera" style="display:none">🔄</button>
       <button class="ctrl flash" id="flashBtn" title="LED flash / light" style="display:none">🔦 Flash</button>
       <button class="ctrl" id="filtersBtn" title="Video filters" style="display:none">✨</button>
       <button class="ctrl rec" id="recBtn" title="Record live" style="display:none">⏺ Rec</button>
       <button class="ctrl wave" id="waveBtn" title="Wave to join stage" style="display:none">✋ Wave</button>
-      <button class="ctrl" id="guestRadioBtn" title="Radio mode (your broadcast)" style="display:none">📻 Radio</button>
+      <button class="ctrl" id="guestRadioBtn" title="Radio mode" style="display:none">📻 Radio</button>
       <button class="ctrl" id="viewRadioBtn" title="Radio view" style="display:none">📻 View</button>
       <button class="ctrl danger" id="endBtn" title="End stream">End</button>
     </div>
@@ -451,10 +480,12 @@
 
   /* ================= CONFIG ================= */
   const ADMIN_PASSWORD = 'admin123';
-  const ID_PREFIX      = 'streamlink-v5-';
+  const ID_PREFIX      = 'streamlink-v6-';
   const CODE_ALPHABET  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const CODE_LEN       = 6;
   const MAX_GUESTS     = 8;
+  const DEFAULT_TEXT_COLOR = '#e9eefb';
+  const DEFAULT_BG_COLOR   = '#0a0d13';
 
   const FILTERS = [
     { id:'none',    label:'Normal',  css:'none' },
@@ -473,6 +504,12 @@
   const landing      = $('#landing');
   const room         = $('#room');
   const stage        = $('#stage');
+  const boardEl      = $('#board');
+  const boardColors  = $('#boardColors');
+  const boardTextColorEl = $('#boardTextColor');
+  const boardBgColorEl   = $('#boardBgColor');
+  const boardTextSwatch  = $('#boardTextSwatch');
+  const boardBgSwatch    = $('#boardBgSwatch');
   const hostVideo    = $('#hostVideo');
   const tilesStrip   = $('#tilesStrip');
   const screenlight  = $('#screenlight');
@@ -488,6 +525,7 @@
   const waitingText  = $('#waitingText');
   const micBtn       = $('#micBtn');
   const camBtn       = $('#camBtn');
+  const flipBtn      = $('#flipBtn');
   const flashBtn     = $('#flashBtn');
   const filtersBtn   = $('#filtersBtn');
   const recBtn       = $('#recBtn');
@@ -524,16 +562,18 @@
     peer: null,
     localStream: null,
     conns: [],
-    calls: [],            // every MediaConnection we own
-    guestRelays: [],      // host: calls pushing guest streams to viewers
-    guests: new Map(),    // host: guestId -> {id,name,mode,stream,call}
-    guestViews: new Map(),// viewer: guestId -> {id,name,mode,stream,call}
-    requests: new Map(),  // host: peerId -> {peerId,name,mode}
+    calls: [],
+    guestRelays: [],
+    guests: new Map(),
+    guestViews: new Map(),
+    requests: new Map(),
     chatOpen: false,
     unread: 0,
     soundOn: false,
     radio: false,
     boardText: '',
+    boardTextColor: DEFAULT_TEXT_COLOR,
+    boardBgColor: DEFAULT_BG_COLOR,
     filterId: 'none',
     filterCss: 'none',
     torchSupported: false,
@@ -545,7 +585,8 @@
     myGuestName: '',
     guestStream: null,
     pendingWaveMode: 'camera',
-    recording: null
+    recording: null,
+    facingMode: 'user'
   };
   let boardTimer = null;
 
@@ -561,6 +602,27 @@
   const showWaiting = text => { waitingText.textContent = text; waiting.classList.remove('hidden'); };
   const hideWaiting = () => waiting.classList.add('hidden');
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  /* ================= BOARD STYLE ================= */
+  function applyBoardStyle() {
+    boardEl.style.backgroundColor = state.boardBgColor;
+    boardInput.style.color = state.boardTextColor;
+    boardView.style.color = state.boardTextColor;
+    boardTextSwatch.style.background = state.boardTextColor;
+    boardBgSwatch.style.background = state.boardBgColor;
+    if (document.activeElement !== boardTextColorEl) boardTextColorEl.value = state.boardTextColor;
+    if (document.activeElement !== boardBgColorEl)   boardBgColorEl.value   = state.boardBgColor;
+  }
+  boardTextColorEl.addEventListener('input', e => {
+    state.boardTextColor = e.target.value;
+    applyBoardStyle();
+    broadcast({ type:'board-style', textColor: state.boardTextColor, bgColor: state.boardBgColor });
+  });
+  boardBgColorEl.addEventListener('input', e => {
+    state.boardBgColor = e.target.value;
+    applyBoardStyle();
+    broadcast({ type:'board-style', textColor: state.boardTextColor, bgColor: state.boardBgColor });
+  });
 
   /* ================= FILTERS ================= */
   function applyFilter() {
@@ -601,6 +663,14 @@
   }
 
   /* ================= LED FLASH ================= */
+  function updateTorchSupport(track) {
+    try {
+      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+      state.torchSupported = !!(caps && caps.torch);
+    } catch (e) { state.torchSupported = false; }
+    state.torch = false;
+    updateFlashButton();
+  }
   function updateFlashButton() {
     const on = state.torch || state.screenLight;
     flashBtn.classList.toggle('on', on);
@@ -640,7 +710,73 @@
     flashBtn.classList.remove('on');
   }
 
-  /* ================= BOARD ================= */
+  /* ================= CAMERA FLIP ================= */
+  async function flipCamera() {
+    const isHost = state.role === 'host';
+    const stream = isHost ? state.localStream : state.guestStream;
+    if (!stream) return;
+    const oldTrack = stream.getVideoTracks()[0];
+    if (!oldTrack) return;
+
+    const newFacing = state.facingMode === 'user' ? 'environment' : 'user';
+    const width  = isHost ? 1280 : 640;
+    const height = isHost ? 720  : 480;
+    let newStream;
+    try {
+      newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacing, width: { ideal: width }, height: { ideal: height } },
+        audio: false
+      });
+    } catch (e) {
+      addMessage('Could not switch camera: ' + (e.message || e.name), 'system');
+      return;
+    }
+
+    const newTrack = newStream.getVideoTracks()[0];
+    newTrack.enabled = oldTrack.enabled;
+
+    // Swap into local stream (keep audio track)
+    const audioTracks = stream.getAudioTracks();
+    const rebuilt = new MediaStream([newTrack, ...audioTracks]);
+    oldTrack.stop();
+    if (isHost) state.localStream = rebuilt;
+    else        state.guestStream = rebuilt;
+
+    state.facingMode = newFacing;
+
+    // Update preview
+    if (isHost) {
+      hostVideo.srcObject = rebuilt;
+      hostVideo.classList.toggle('mirrored', newFacing === 'user');
+      hostVideo.play().catch(() => {});
+      updateTorchSupport(newTrack);
+    } else {
+      attachToTile(state.peer.id, rebuilt);
+      const tile = tilesStrip.querySelector(`.tile[data-guestid="${CSS.escape(state.peer.id)}"]`);
+      const v = tile && tile.querySelector('video');
+      if (v) v.classList.toggle('mirrored', newFacing === 'user');
+      updateTorchSupport(newTrack);
+    }
+
+    // Replace on all outgoing calls that carry our video
+    const targetCalls = isHost
+      ? state.calls
+      : state.calls.filter(c => c._guestId === state.peer.id);
+
+    targetCalls.forEach(call => {
+      try {
+        const pc = call.peerConnection;
+        if (!pc) return;
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack).catch(() => {});
+      } catch (e) {}
+    });
+
+    addMessage('Camera: ' + (newFacing === 'user' ? 'front' : 'back'), 'system');
+  }
+  flipBtn.addEventListener('click', flipCamera);
+
+  /* ================= BOARD TEXT ================= */
   function setBoardView(text) {
     if (!text) { boardView.textContent = 'The host hasn’t written anything yet…'; boardView.classList.add('empty'); }
     else { boardView.textContent = text; boardView.classList.remove('empty'); }
@@ -688,14 +824,14 @@
     soundBtn.classList.toggle('on', state.soundOn);
     soundBtn.textContent = state.soundOn ? '🔊' : '🔇';
     document.querySelectorAll('.tile video').forEach(v => {
-      if (v === hostVideo && state.role === 'host') return;   // host preview stays muted
+      if (v === hostVideo && state.role === 'host') return;
       v.muted = !state.soundOn;
       if (state.soundOn) v.play().catch(() => {});
     });
   }
   soundBtn.addEventListener('click', toggleSound);
 
-  /* ================= DATA ROUTING ================= */
+  /* ================= DATA ================= */
   function broadcast(payload) { state.conns.forEach(c => { if (c.open) c.send(payload); }); }
 
   function handleData(conn, data) {
@@ -708,6 +844,13 @@
     } else if (data.type === 'board') {
       if (state.role === 'viewer') setBoardView(data.text);
 
+    } else if (data.type === 'board-style') {
+      if (state.role === 'viewer') {
+        state.boardTextColor = data.textColor || DEFAULT_TEXT_COLOR;
+        state.boardBgColor   = data.bgColor   || DEFAULT_BG_COLOR;
+        applyBoardStyle();
+      }
+
     } else if (data.type === 'filter') {
       if (state.role === 'viewer') {
         const f = FILTERS.find(x => x.id === data.id) || FILTERS[0];
@@ -719,7 +862,6 @@
       setViewerCount(data.count);
 
     } else if (data.type === 'wave' && state.role === 'host') {
-      // viewer wants to join the stage
       if (state.guests.size >= MAX_GUESTS) {
         if (conn.open) conn.send({ type:'guest-denied', reason:'stage-full' });
         return;
@@ -782,7 +924,7 @@
     broadcast({ type:'count', count: n });
   }
 
-  /* ================= TILE HELPERS ================= */
+  /* ================= TILES ================= */
   function tileHTML(id, name, mode, isSelf) {
     const cls = 'tile guest-tile' + (mode === 'radio' ? ' radio' : '');
     return `<div class="${cls}" data-guestid="${esc(id)}"${isSelf ? ' data-self="1"' : ''}>
@@ -793,19 +935,14 @@
       <button class="tile-remove" title="Remove guest" data-remove="${esc(id)}">×</button>
     </div>`;
   }
-
   function addGuestTile(id, name, mode, isSelf) {
     removeGuestTile(id, true);
     const wrap = document.createElement('div');
     wrap.innerHTML = tileHTML(id, name, mode, isSelf).trim();
     const tile = wrap.firstElementChild;
-    // remove button only for host
     const rm = tile.querySelector('.tile-remove');
     if (state.role === 'host') {
-      rm.addEventListener('click', e => {
-        e.stopPropagation();
-        removeGuest(id, true);
-      });
+      rm.addEventListener('click', e => { e.stopPropagation(); removeGuest(id, true); });
     } else {
       rm.remove();
     }
@@ -813,29 +950,27 @@
     applyFilter();
     return tile;
   }
-
-  function removeGuestTile(id, silent) {
+  function removeGuestTile(id) {
     const tile = tilesStrip.querySelector(`.tile[data-guestid="${CSS.escape(id)}"]`);
     if (!tile) return;
     const v = tile.querySelector('video');
     if (v) { try { v.srcObject = null; } catch (e) {} }
     tile.remove();
   }
-
   function attachToTile(id, stream) {
     const tile = tilesStrip.querySelector(`.tile[data-guestid="${CSS.escape(id)}"]`);
     if (!tile) return;
     const v = tile.querySelector('video');
     if (!v) return;
     v.srcObject = stream;
-    // self tile or host preview: stay muted. others: follow soundOn
     const isSelf = tile.dataset.self === '1';
-    v.muted = isSelf || !state.soundOn;
+    // host hears guests; viewer only hears when sound toggle is on; self always muted
+    v.muted = isSelf || (state.role !== 'host' && !state.soundOn);
     v.play().catch(() => { v.muted = true; });
     applyFilter();
   }
 
-  /* ================= REQUESTS (HOST) ================= */
+  /* ================= REQUESTS ================= */
   function renderRequests() {
     requestsEl.innerHTML = '';
     state.requests.forEach(req => {
@@ -858,10 +993,7 @@
   function approveGuest(peerId) {
     const req = state.requests.get(peerId);
     if (!req) return;
-    if (state.guests.size >= MAX_GUESTS) {
-      alert('Stage is full — 8 guests max.');
-      return;
-    }
+    if (state.guests.size >= MAX_GUESTS) { alert('Stage is full — 8 guests max.'); return; }
     state.requests.delete(peerId);
     renderRequests();
     const conn = state.conns.find(c => c.peer === peerId);
@@ -875,26 +1007,21 @@
     if (conn && conn.open) conn.send({ type:'guest-denied' });
   }
 
-  /* ================= GUEST LIFECYCLE (HOST SIDE) ================= */
+  /* ================= GUEST REMOVAL (HOST) ================= */
   function removeGuest(guestId, notify) {
     const g = state.guests.get(guestId);
     if (g) {
       try { g.call && g.call.close(); } catch (e) {}
       state.guests.delete(guestId);
     }
-    // close all relay calls for this guest
     state.guestRelays = state.guestRelays.filter(rc => {
-      if (rc._guestId === guestId) {
-        try { rc.close(); } catch (e) {}
-        return false;
-      }
+      if (rc._guestId === guestId) { try { rc.close(); } catch (e) {} return false; }
       return true;
     });
     removeGuestTile(guestId);
     if (notify) {
       const conn = state.conns.find(c => c.peer === guestId);
       if (conn && conn.open) conn.send({ type:'guest-removed' });
-      // tell viewers to drop the tile
       broadcast({ type:'guest-remove', guestId });
     }
   }
@@ -923,6 +1050,8 @@
     state.localStream = stream;
     state.code = genCode();
     state.boardText = '';
+    state.boardTextColor = DEFAULT_TEXT_COLOR;
+    state.boardBgColor = DEFAULT_BG_COLOR;
     state.filterId = 'none';
     state.filterCss = 'none';
     state.torch = false;
@@ -932,33 +1061,31 @@
     state.guests.clear();
     state.guestRelays = [];
     state.requests.clear();
-
-    // detect torch
-    state.torchSupported = false;
-    try {
-      const track = stream.getVideoTracks()[0];
-      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-      state.torchSupported = !!(caps && caps.torch);
-    } catch (e) { state.torchSupported = false; }
+    state.facingMode = 'user';
 
     hostVideo.srcObject = stream;
     hostVideo.muted = true;
     hostVideo.classList.add('mirrored');
     hostVideo.style.filter = 'none';
     hostVideo.play().catch(() => {});
+    updateTorchSupport(stream.getVideoTracks()[0]);
 
     enterRoom();
-
     codeText.textContent = state.code;
     setupShare(state.code);
 
+    // Board
+    boardColors.classList.add('show');
     boardInput.style.display = '';
     boardView.style.display = 'none';
     boardInput.value = '';
     boardView.textContent = '';
+    applyBoardStyle();
 
+    // Buttons
     micBtn.style.display = '';
     camBtn.style.display = '';
+    flipBtn.style.display = '';
     flashBtn.style.display = '';
     filtersBtn.style.display = '';
     recBtn.style.display = '';
@@ -987,7 +1114,6 @@
 
   function onIncomingConnection(conn) {
     if (state.role !== 'host') { try { conn.close(); } catch (e) {} return; }
-
     state.conns.push(conn);
     wireConnection(conn);
 
@@ -996,9 +1122,7 @@
       const call = state.peer.call(conn.peer, state.localStream, { metadata: { role:'host' } });
       if (call) state.calls.push(call);
     };
-
     const relayExistingGuests = () => {
-      // send every active guest stream to the new viewer
       state.guests.forEach(g => {
         if (!g.stream) return;
         const c = state.peer.call(conn.peer, g.stream, {
@@ -1007,21 +1131,17 @@
         if (c) { c._guestId = g.id; state.guestRelays.push(c); }
       });
     };
-
     const onOpen = () => {
       startHostCall();
       relayExistingGuests();
-      // send initial state
       if (conn.open) {
         conn.send({ type:'board', text: state.boardText });
+        conn.send({ type:'board-style', textColor: state.boardTextColor, bgColor: state.boardBgColor });
         conn.send({ type:'filter', id: state.filterId });
       }
       syncCount();
     };
-
-    if (conn.open) onOpen();
-    else conn.on('open', onOpen);
-
+    if (conn.open) onOpen(); else conn.on('open', onOpen);
     conn.on('close', () => syncCount());
   }
 
@@ -1033,7 +1153,6 @@
       landingError.textContent = 'Enter the ' + CODE_LEN + '-character room code.';
       return;
     }
-
     state.role = 'viewer';
     state.code = code;
     state.filterId = 'none';
@@ -1046,21 +1165,25 @@
     state.guests.clear();
     state.guestViews.clear();
     state.requests.clear();
+    state.boardTextColor = DEFAULT_TEXT_COLOR;
+    state.boardBgColor = DEFAULT_BG_COLOR;
+    state.facingMode = 'user';
 
-    // reset tiles
     tilesStrip.querySelectorAll('.tile[data-guestid]').forEach(t => t.remove());
 
     enterRoom();
-
     codeText.textContent = code;
     setupShare(code);
 
+    boardColors.classList.remove('show');
     boardInput.style.display = 'none';
     boardView.style.display = '';
     setBoardView('');
+    applyBoardStyle();
 
     micBtn.style.display = 'none';
     camBtn.style.display = 'none';
+    flipBtn.style.display = 'none';
     flashBtn.style.display = 'none';
     filtersBtn.style.display = 'none';
     recBtn.style.display = 'none';
@@ -1090,65 +1213,102 @@
   }
 
   function onIncomingCall(call) {
-    if (state.role !== 'viewer') { try { call.answer(); } catch (e) {} return; }
     const meta = call.metadata || {};
 
-    try { call.answer(); } catch (e) {}
-    state.calls.push(call);
+    /* ---- VIEWER SIDE ---- */
+    if (state.role === 'viewer') {
+      try { call.answer(); } catch (e) {}
+      state.calls.push(call);
 
-    if (meta.role === 'host') {
-      call.on('stream', remote => {
-        hostVideo.srcObject = remote;
-        hostVideo.muted = !state.soundOn;
-        hostVideo.play().catch(() => { hostVideo.muted = true; });
-        applyFilter();
-        hideWaiting();
-        setStatus('Live', true);
-      });
-      call.on('close', () => {
-        setStatus('Live ended', false);
-        showWaiting('The host has ended the live.');
-      });
+      if (meta.role === 'host') {
+        call.on('stream', remote => {
+          hostVideo.srcObject = remote;
+          hostVideo.muted = !state.soundOn;
+          hostVideo.play().catch(() => { hostVideo.muted = true; });
+          applyFilter();
+          hideWaiting();
+          setStatus('Live', true);
+        });
+        call.on('close', () => {
+          setStatus('Live ended', false);
+          showWaiting('The host has ended the live.');
+        });
 
-    } else if (meta.role === 'guest') {
+      } else if (meta.role === 'guest') {
+        const gid = meta.guestId;
+        const gname = meta.name || 'Guest';
+        const gmode = meta.mode || 'camera';
+        state.guestViews.set(gid, { id: gid, name: gname, mode: gmode, call });
+        addGuestTile(gid, gname, gmode, false);
+
+        call.on('stream', stream => {
+          const rec = state.guestViews.get(gid);
+          if (rec) rec.stream = stream;
+          attachToTile(gid, stream);
+        });
+        call.on('close', () => {
+          state.guestViews.delete(gid);
+          removeGuestTile(gid);
+        });
+      }
+      return;
+    }
+
+    /* ---- HOST SIDE (receives guest stream) ---- */
+    if (state.role === 'host' && meta.role === 'guest') {
+      try { call.answer(); } catch (e) {}
+      state.calls.push(call);
+
       const gid = meta.guestId;
       const gname = meta.name || 'Guest';
       const gmode = meta.mode || 'camera';
-      state.guestViews.set(gid, { id: gid, name: gname, mode: gmode, call });
+
+      state.guests.set(gid, { id: gid, name: gname, mode: gmode, call, stream: null });
       addGuestTile(gid, gname, gmode, false);
 
       call.on('stream', stream => {
-        const rec = state.guestViews.get(gid);
-        if (rec) rec.stream = stream;
+        const g = state.guests.get(gid);
+        if (g) g.stream = stream;
         attachToTile(gid, stream);
+
+        // relay to every connected viewer
+        state.conns.forEach(conn => {
+          if (!conn.open) return;
+          const relay = state.peer.call(conn.peer, stream, {
+            metadata: { role:'guest', guestId: gid, name: gname, mode: gmode }
+          });
+          if (relay) { relay._guestId = gid; state.guestRelays.push(relay); }
+        });
       });
-      call.on('close', () => {
-        state.guestViews.delete(gid);
-        removeGuestTile(gid);
-      });
+
+      call.on('close', () => removeGuest(gid, true));
+      return;
     }
+
+    // unknown incoming call — just answer politely
+    try { call.answer(); } catch (e) {}
   }
 
-  /* ================= GUEST MODE (VIEWER BECOMES GUEST) ================= */
+  /* ================= GUEST LIFECYCLE (VIEWER) ================= */
   async function becomeGuest(mode) {
     if (state.isGuest) return;
     try {
-      const constraints = mode === 'radio'
-        ? { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
-        : { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-            audio: { echoCancellation: true, noiseSuppression: true } };
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: state.facingMode || 'user' },
+        audio: { echoCancellation: true, noiseSuppression: true }
+      });
+      if (mode === 'radio') stream.getVideoTracks().forEach(t => { t.enabled = false; });
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       state.guestStream = stream;
       state.isGuest = true;
       state.myGuestMode = mode;
       state.myGuestName = (state.myGuestName || 'Guest').slice(0, 20);
 
-      // self tile
       addGuestTile(state.peer.id, state.myGuestName + ' (you)', mode, true);
       attachToTile(state.peer.id, stream);
+      const selfTile = tilesStrip.querySelector(`.tile[data-guestid="${CSS.escape(state.peer.id)}"] video`);
+      if (selfTile) selfTile.classList.toggle('mirrored', state.facingMode === 'user');
 
-      // call the host with our stream
       const call = state.peer.call(ID_PREFIX + state.code, stream, {
         metadata: {
           role: 'guest',
@@ -1168,7 +1328,6 @@
 
   function stopBeingGuest(remote) {
     if (!state.isGuest) return;
-    // close our outbound call to the host
     state.calls = state.calls.filter(c => {
       if (c._guestId === state.peer.id) { try { c.close(); } catch (e) {} return false; }
       return true;
@@ -1195,10 +1354,22 @@
       guestRadioBtn.style.display = '';
       guestRadioBtn.classList.toggle('on', state.myGuestMode === 'radio');
       guestRadioBtn.textContent = state.myGuestMode === 'radio' ? '📻 Radio ON' : '📻 Radio';
+
+      micBtn.style.display = '';
+      micBtn.textContent = '🎤';
+      micBtn.classList.remove('off');
+      const isCam = state.myGuestMode === 'camera';
+      camBtn.style.display = isCam ? '' : 'none';
+      camBtn.textContent = '📹';
+      camBtn.classList.remove('off');
+      flipBtn.style.display = isCam ? '' : 'none';
     } else {
       waveBtn.textContent = '✋ Wave';
       waveBtn.classList.remove('on');
       guestRadioBtn.style.display = 'none';
+      micBtn.style.display = 'none';
+      camBtn.style.display = 'none';
+      flipBtn.style.display = 'none';
     }
   }
 
@@ -1206,11 +1377,9 @@
     if (!state.isGuest || !state.guestStream) return;
     const next = state.myGuestMode === 'radio' ? 'camera' : 'radio';
     const vids = state.guestStream.getVideoTracks();
-    if (next === 'radio') {
-      vids.forEach(t => t.enabled = false);
-    } else if (vids.length) {
-      vids.forEach(t => t.enabled = true);
-    }
+    if (next === 'radio') vids.forEach(t => { t.enabled = false; });
+    else                  vids.forEach(t => { t.enabled = true; });
+
     state.myGuestMode = next;
     const tile = tilesStrip.querySelector(`.tile[data-guestid="${CSS.escape(state.peer.id)}"]`);
     if (tile) tile.classList.toggle('radio', next === 'radio');
@@ -1253,18 +1422,15 @@
     waveModal.classList.add('open');
     setTimeout(() => waveName.focus(), 60);
   });
-
   waveModal.querySelectorAll('.mode-btn').forEach(b => {
     b.addEventListener('click', () => {
       state.pendingWaveMode = b.dataset.mode;
       waveModal.querySelectorAll('.mode-btn').forEach(x => x.classList.toggle('active', x === b));
     });
   });
-
   function closeWave() { waveModal.classList.remove('open'); }
   $('#waveCancel').addEventListener('click', closeWave);
   waveModal.addEventListener('click', e => { if (e.target === waveModal) closeWave(); });
-
   $('#waveSend').addEventListener('click', () => {
     const name = (waveName.value || '').trim().slice(0, 20);
     if (!name) { waveError.textContent = 'Please enter a name.'; return; }
@@ -1297,7 +1463,6 @@
       y += lineHeight;
     }
   }
-
   function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -1320,16 +1485,15 @@
     try {
       ac = new (window.AudioContext || window.webkitAudioContext)();
       dest = ac.createMediaStreamDestination();
-      if (state.localStream) {
-        const src = ac.createMediaStreamSource(state.localStream);
-        src.connect(dest);
+      if (state.localStream && state.localStream.getAudioTracks().length) {
+        ac.createMediaStreamSource(state.localStream).connect(dest);
       }
       state.guests.forEach(g => {
         if (g.stream && g.stream.getAudioTracks().length) {
           try { ac.createMediaStreamSource(g.stream).connect(dest); } catch (e) {}
         }
       });
-    } catch (e) { /* audio mixing optional */ }
+    } catch (e) {}
 
     const canvasStream = canvas.captureStream(30);
     const tracks = [...canvasStream.getVideoTracks()];
@@ -1362,33 +1526,39 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
       addMessage(`Recording saved as .${ext}`, 'system');
-      if (ext !== 'mp4') addMessage('Your browser cannot encode MP4 directly — the file was saved as WebM (open it in any player, or convert with an online tool).', 'system');
+      if (ext !== 'mp4') addMessage('Browser cannot encode MP4 directly — saved as WebM (convert with an online tool if needed).', 'system');
     };
-
     rec.start(2000);
 
     const stateRec = { rec, ac, canvas, ctx, raf: null, mime };
     state.recording = stateRec;
 
     const draw = () => {
-      ctx.fillStyle = '#0a0d13';
+      // board background
+      ctx.fillStyle = state.boardBgColor || '#0a0d13';
       ctx.fillRect(0, 0, 1280, 720);
 
       // board text
-      ctx.fillStyle = '#e9eefb';
+      ctx.fillStyle = state.boardTextColor || '#e9eefb';
       ctx.font = 'bold 34px -apple-system, "Segoe UI", sans-serif';
       ctx.textBaseline = 'top';
-      wrapText(ctx, state.boardText || 'Live on StreamLink', 50, 50, 900, 44);
+      wrapText(ctx, state.boardText || 'Live on StreamLink', 50, 50, 820, 44);
 
-      // host video (mirrored, right side)
+      // host tile (mirrored if facing user)
       if (hostVideo.readyState >= 2) {
         const vx = 900, vy = 50, vw = 340, vh = 340;
         ctx.save();
         roundRect(ctx, vx, vy, vw, vh, 22);
         ctx.clip();
-        ctx.translate(vx + vw, vy);
-        ctx.scale(-1, 1);
-        ctx.drawImage(hostVideo, 0, 0, vw, vh);
+        if (state.filterCss !== 'none') ctx.filter = state.filterCss;
+        if (hostVideo.classList.contains('mirrored')) {
+          ctx.translate(vx + vw, vy);
+          ctx.scale(-1, 1);
+          ctx.drawImage(hostVideo, 0, 0, vw, vh);
+        } else {
+          ctx.drawImage(hostVideo, vx, vy, vw, vh);
+        }
+        ctx.filter = 'none';
         ctx.restore();
         ctx.fillStyle = 'rgba(0,0,0,.65)';
         ctx.fillRect(vx + 12, vy + vh - 42, 90, 30);
@@ -1397,7 +1567,7 @@
         ctx.fillText('HOST', vx + 24, vy + vh - 22);
       }
 
-      // guests row
+      // guest row
       const guestArr = Array.from(state.guests.values());
       const tw = 150, th = 150, gap = 12;
       let gx = 50;
@@ -1409,10 +1579,11 @@
           ctx.save();
           roundRect(ctx, gx, gy, tw, th, 18);
           ctx.clip();
+          if (state.filterCss !== 'none') ctx.filter = state.filterCss;
           ctx.drawImage(vid, gx, gy, tw, th);
+          ctx.filter = 'none';
           ctx.restore();
         } else {
-          // radio placeholder
           ctx.fillStyle = '#14203a';
           roundRect(ctx, gx, gy, tw, th, 18);
           ctx.fill();
@@ -1433,7 +1604,7 @@
       }
 
       // timestamp
-      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      ctx.fillStyle = 'rgba(255,255,255,.6)';
       ctx.font = '13px -apple-system, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(new Date().toLocaleString(), 1230, 20);
@@ -1457,18 +1628,13 @@
     updateRecordingUI();
     addMessage('Recording stopped — download starting.', 'system');
   }
-
   function updateRecordingUI() {
     const on = !!state.recording;
     recBtn.classList.toggle('on', on);
     recBtn.textContent = on ? '⏹ Stop' : '⏺ Rec';
     recIndicator.classList.toggle('active', on);
   }
-
-  recBtn.addEventListener('click', () => {
-    if (state.recording) stopRecording();
-    else startRecording();
-  });
+  recBtn.addEventListener('click', () => { if (state.recording) stopRecording(); else startRecording(); });
 
   /* ================= SHARE ================= */
   function setupShare(code) {
@@ -1497,7 +1663,7 @@
     setTimeout(() => { codePill.innerHTML = original; }, 1400);
   });
 
-  /* ================= PEER LIFECYCLE ================= */
+  /* ================= PEER ================= */
   function createPeer(id) {
     state.peer = id ? new Peer(id, { debug: 1 }) : new Peer({ debug: 1 });
 
@@ -1519,7 +1685,6 @@
 
     state.peer.on('connection', onIncomingConnection);
     state.peer.on('call', onIncomingCall);
-
     state.peer.on('disconnected', () => { try { state.peer.reconnect(); } catch (e) {} });
 
     state.peer.on('error', err => {
@@ -1552,7 +1717,6 @@
   }
 
   function leaveRoom() {
-    // stop recording first
     if (state.recording) {
       try { state.recording.rec.stop(); } catch (e) {}
       if (state.recording.raf) cancelAnimationFrame(state.recording.raf);
@@ -1561,7 +1725,6 @@
     }
     disableFlash();
 
-    // close all calls
     state.calls.forEach(c => { try { c.close(); } catch (e) {} });
     state.guestRelays.forEach(c => { try { c.close(); } catch (e) {} });
     state.calls = []; state.guestRelays = [];
@@ -1569,20 +1732,13 @@
     try { state.peer && state.peer.destroy(); } catch (e) {}
     state.peer = null;
 
-    if (state.localStream) {
-      state.localStream.getTracks().forEach(t => t.stop());
-      state.localStream = null;
-    }
-    if (state.guestStream) {
-      state.guestStream.getTracks().forEach(t => t.stop());
-      state.guestStream = null;
-    }
+    if (state.localStream) { state.localStream.getTracks().forEach(t => t.stop()); state.localStream = null; }
+    if (state.guestStream) { state.guestStream.getTracks().forEach(t => t.stop()); state.guestStream = null; }
 
     hostVideo.srcObject = null;
     hostVideo.classList.remove('mirrored');
     hostVideo.style.filter = 'none';
 
-    // clear guest tiles
     tilesStrip.querySelectorAll('.tile[data-guestid]').forEach(t => t.remove());
     requestsEl.innerHTML = '';
 
@@ -1591,6 +1747,8 @@
     state.code = null;
     state.radio = false;
     state.boardText = '';
+    state.boardTextColor = DEFAULT_TEXT_COLOR;
+    state.boardBgColor = DEFAULT_BG_COLOR;
     state.chatOpen = false;
     state.unread = 0;
     state.filterId = 'none';
@@ -1603,6 +1761,7 @@
     state.myGuestMode = null;
     state.myGuestName = '';
     state.soundOn = false;
+    state.facingMode = 'user';
     state.guests.clear();
     state.guestViews.clear();
     state.requests.clear();
@@ -1618,6 +1777,8 @@
     boardInput.style.display = '';
     boardView.style.display = 'none';
     boardView.textContent = '';
+    boardColors.classList.remove('show');
+    applyBoardStyle();
 
     viewRadioBtn.textContent = '📻 View';
     viewRadioBtn.classList.remove('on');
@@ -1637,6 +1798,7 @@
 
     micBtn.style.display = 'none';
     camBtn.style.display = 'none';
+    flipBtn.style.display = 'none';
     flashBtn.style.display = 'none';
     filtersBtn.style.display = 'none';
     recBtn.style.display = 'none';
@@ -1656,23 +1818,24 @@
     codeInput.value = '';
   }
 
-  /* ================= MEDIA CONTROLS (HOST) ================= */
+  /* ================= MEDIA CONTROLS ================= */
+  function activeStream() {
+    return state.role === 'host' ? state.localStream : state.guestStream;
+  }
   micBtn.addEventListener('click', () => {
-    const track = state.localStream && state.localStream.getAudioTracks()[0];
+    const track = activeStream() && activeStream().getAudioTracks()[0];
     if (!track) return;
     track.enabled = !track.enabled;
     micBtn.classList.toggle('off', !track.enabled);
     micBtn.textContent = track.enabled ? '🎤' : '🔇';
   });
-
   camBtn.addEventListener('click', () => {
-    const track = state.localStream && state.localStream.getVideoTracks()[0];
+    const track = activeStream() && activeStream().getVideoTracks()[0];
     if (!track) return;
     track.enabled = !track.enabled;
     camBtn.classList.toggle('off', !track.enabled);
     camBtn.textContent = track.enabled ? '📹' : '🚫';
   });
-
   flashBtn.addEventListener('click', toggleFlash);
   filtersBtn.addEventListener('click', toggleFiltersBar);
 
@@ -1692,7 +1855,6 @@
       msgInput.focus();
     }
   });
-
   composer.addEventListener('submit', e => {
     e.preventDefault();
     sendChat(msgInput.value);
